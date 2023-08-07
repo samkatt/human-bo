@@ -1,25 +1,92 @@
 import itertools
+from botorch.models import SingleTaskGP
 import torch
 from botorch.acquisition import qMaxValueEntropy
-from botorch.acquisition.analytic import ExpectedImprovement, UpperConfidenceBound
+from botorch.acquisition.analytic import (
+    ExpectedImprovement,
+    UpperConfidenceBound,
+    AcquisitionFunction,
+)
+from gpytorch.kernels import MaternKernel, RBFKernel, ScaleKernel
+from botorch.test_functions import Branin, Hartmann, Rosenbrock, SyntheticTestFunction
+from human_bo.test_functions import Zhou
 
 
-def pick_acqf(acqf, data, gpr, bounds):
-    "Instantiate the given acqf."
+def pick_test_function(func: str) -> SyntheticTestFunction:
+    """Instantiate the given function to optimize.
 
-    if acqf == "UCB":
-        beta = 0.2  # basic value for normalized data
-        af = UpperConfidenceBound(gpr, beta)
-    elif acqf == "MES":
-        Ncandids = 100  # size of candidate set to approximate MES
-        candidate_set = torch.rand(
-            Ncandids, bounds.size(1), device=bounds.device, dtype=bounds.dtype
+    :func: string description of the test function to return
+    """
+
+    test_function_mapping: dict[str, SyntheticTestFunction] = {
+        "Zhou": Zhou(),
+        "Hartmann": Hartmann(negate=True),
+        "Branin": Branin(negate=True),
+        "Rosenbrock": Rosenbrock(dim=2, negate=True, bounds=[(-5.0, 5.0), (-5.0, 5.0)]),
+    }
+
+    try:
+        return test_function_mapping[func]
+    except KeyError:
+        raise KeyError(
+            f"{func} is not an accepted experiment test function (not in {test_function_mapping.keys()})"
         )
-        candidate_set = bounds[0] + (bounds[1] - bounds[0]) * candidate_set
-        af = qMaxValueEntropy(gpr, candidate_set)
-    else:
-        af = ExpectedImprovement(gpr, data["train_Y"].max())
-    return af
+
+
+def pick_kernel(ker: str, dim: int) -> ScaleKernel:
+    """Instantiate the given kernel.
+
+    :ker: string representation of the kernel
+    :dim: number of dimensions of the kernel
+    """
+
+    # ScaleKernel adds the amplitude hyper-parameter
+    kernel_mapping: dict[str, ScaleKernel] = {
+        "RBF": ScaleKernel(RBFKernel(ard_num_dims=dim)),
+        "Matern": ScaleKernel(MaternKernel(ard_num_dims=dim)),
+    }
+
+    try:
+        return kernel_mapping[ker]
+    except:
+        raise KeyError(
+            f"{ker} is not an accepted kernel (not in {kernel_mapping.keys()})"
+        )
+
+
+def pick_acqf(
+    acqf: str, y: torch.Tensor, gpr: SingleTaskGP, bounds: torch.Tensor
+) -> AcquisitionFunction:
+    """Instantiate the given acqf.
+
+    :acqf: string representation of the acquisition function to pick
+    :y: initial y values (probably to compute the max)
+    :gpr: the GP used by the acquisition function
+    :bounds: [x,y] bounds on the function
+    """
+
+    # create MES acquisition function
+    mes_n_candidates = 100  # size of candidate set to approximate MES
+    mes_candidate_set = torch.rand(
+        mes_n_candidates, bounds.size(1), device=bounds.device, dtype=bounds.dtype
+    )
+    mes_candidate_set = bounds[0] + (bounds[1] - bounds[0]) * mes_candidate_set
+    mes = qMaxValueEntropy(gpr, mes_candidate_set)
+
+    acqf_mapping: dict[str, AcquisitionFunction] = {
+        "UCB": UpperConfidenceBound(
+            gpr, beta=0.2  # 0.2 is basic value for normalized data,
+        ),
+        "MES": mes,
+        "EI": ExpectedImprovement(gpr, y.max()),
+    }
+
+    try:
+        return acqf_mapping[acqf]
+    except KeyError:
+        raise KeyError(
+            f"{acqf} is not an accepted acquisition function (not in {acqf_mapping.keys()})"
+        )
 
 
 def build_combinations(N_REP, experiments, kernels, acqfs, n_init, seed):

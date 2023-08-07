@@ -1,14 +1,13 @@
+""" Test functions that are not implemented in BoTorch """
 from typing import List, Optional, Tuple
 
 import torch
 from botorch.test_functions.synthetic import SyntheticTestFunction
 from torch import Tensor
 
-### Test functions that are not implemented in BoTorch
-
 
 class Zhou(SyntheticTestFunction):
-
+    # TODO: sounds like a thing that should be randomly initialized?
     optimal_value = 2.002595246981888
 
     def __init__(

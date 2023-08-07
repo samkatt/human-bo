@@ -1,73 +1,76 @@
 import functools
-
 import multiprocessing as mp
-
 import torch
-from botorch.fit import fit_gpytorch_model
-from botorch.models import SingleTaskGP
-from botorch.optim import optimize_acqf
-from gpytorch.mlls import ExactMarginalLogLikelihood
-
-from human_bo.utils import parser_bo, pick_kernel, pick_test_function
-from human_bo import factories
+from human_bo import factories, core
+import argparse
 
 torch.set_default_dtype(torch.double)
 
 
-def eval_model(combi, budget, savefolder):
-    exp, ker, acqf, n_init, seed = combi
-    path = f"{savefolder}/{exp}_{ker}_{acqf}_{seed}.pt"
-    torch.manual_seed(seed)
+def parser_bo():
+    """Parser used to run the algorithm from an already known crn.
 
-    problem = pick_test_function(exp)
-    bounds = torch.tensor(problem._bounds).T
-    dim = bounds.shape[1]
-    sigma = 0.01  # hardcoded noise level, but should be function-dependent.
+    - Output:
+        * parser: ArgumentParser object.
+    """
 
-    ##### INITIAL DATASET AND GP FITTING
-    data = {}
-    data["train_X"] = bounds[0] + (bounds[1] - bounds[0]) * torch.rand(n_init, dim)
-    train_Y = problem(data["train_X"]).view(-1, 1)
-    data["train_Y"] = train_Y + sigma * torch.randn(size=train_Y.shape)
+    parser = argparse.ArgumentParser(description="Command description.")
 
-    K = pick_kernel(ker, dim)
-    gpr = SingleTaskGP(data["train_X"], data["train_Y"], covar_module=K)
-    mll = ExactMarginalLogLikelihood(gpr.likelihood, gpr)
-    fit_gpytorch_model(mll, max_retries=10)
-
-    ##### BO LOOP
-    data["regrets"] = torch.zeros(budget + 1)
-    data["regrets"][0] = problem.optimal_value - data["train_Y"].max()
-    for b in range(budget):
-        af = factories.pick_acqf(acqf, data, gpr, bounds)
-        candidates, _ = optimize_acqf(
-            acq_function=af,
-            bounds=bounds,
-            q=1,  # batch size, i.e. we only query one point
-            num_restarts=10,
-            raw_samples=512,
-        )
-        y = problem(candidates)
-        data["train_X"] = torch.cat((data["train_X"], candidates))
-        data["train_Y"] = torch.cat((data["train_Y"], y.view(-1, 1)))
-        data["regrets"][b + 1] = problem.optimal_value - data["train_Y"].max()
-        gpr = SingleTaskGP(data["train_X"], data["train_Y"], covar_module=K)
-        mll = ExactMarginalLogLikelihood(gpr.likelihood, gpr)
-        fit_gpytorch_model(mll, max_retries=10)
-    torch.save(data, path)
-
-
-def parallel_eval(combi, budget, savefolder, x):
-    return eval_model(combi[x], budget, savefolder)
+    parser.add_argument(
+        "-n", "--N_REP", help="int, number of reps for stds", type=int, default=1
+    )
+    parser.add_argument(
+        "-ni", "--N_INIT", help="int, size of initial dataset", type=int, default=1
+    )
+    parser.add_argument(
+        "-se", "--seed", default=None, help="int, random seed", type=int
+    )
+    parser.add_argument(
+        "-s", "--savefolder", default=None, type=str, help="Name of saving directory."
+    )
+    parser.add_argument(
+        "-b",
+        "--budget",
+        help="BO Budget",
+        default=10,
+        type=int,
+    )
+    parser.add_argument(
+        "-k",
+        "--kernels",
+        nargs="*",
+        type=str,
+        default=["RBF"],
+        help="list of kernels to try.",
+    )
+    parser.add_argument(
+        "-a",
+        "--acqfs",
+        nargs="*",
+        type=str,
+        default=["MES"],
+        help="list of BO acquisition function to try.",
+    )
+    parser.add_argument(
+        "-e",
+        "--experiments",
+        nargs="*",
+        type=str,
+        default=["Forrester"],
+        help="list of test functions to optimize.",
+    )
+    return parser
 
 
 def main(N_REP, N_INIT, budget, kernels, acqfs, experiments, seed, savefolder):
+    """Main function that is called with arguments parsed by `parser_bo`"""
+
     combi = factories.build_combinations(
         N_REP, experiments, kernels, acqfs, N_INIT, seed
     )
     with mp.Pool() as p:
         p.map(
-            functools.partial(parallel_eval, combi, budget, savefolder),
+            functools.partial(core.parallel_eval, combi, budget, savefolder),
             range(len(combi)),
         )
     p.close()

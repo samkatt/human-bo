@@ -1,4 +1,3 @@
-import itertools
 from botorch.models import SingleTaskGP
 import torch
 from botorch.acquisition import qMaxValueEntropy
@@ -9,6 +8,7 @@ from botorch.acquisition.analytic import (
 )
 from gpytorch.kernels import MaternKernel, RBFKernel, ScaleKernel
 from botorch.test_functions import Branin, Hartmann, Rosenbrock, SyntheticTestFunction
+import human_bo.oracles as oracles
 from human_bo.test_functions import Zhou
 
 
@@ -29,7 +29,7 @@ def pick_test_function(func: str) -> SyntheticTestFunction:
         return test_function_mapping[func]
     except KeyError:
         raise KeyError(
-            f"{func} is not an accepted experiment test function (not in {test_function_mapping.keys()})"
+            f"{func} is not an accepted test function (not in {test_function_mapping.keys()})"
         )
 
 
@@ -89,10 +89,15 @@ def pick_acqf(
         )
 
 
-def build_combinations(N_REP, experiments, kernels, acqfs, n_init, seed):
-    """Construct the list of combination settings to run."""
+def pick_oracle(o, problem: SyntheticTestFunction) -> oracles.Oracle:
+    """Instantiates the `Oracle` describes by `or`
 
-    combi = []
-    li = [experiments, kernels, acqfs, [n_init], [seed + n for n in range(N_REP)]]
-    combi.append(list(itertools.product(*li)))
-    return sum(combi, [])
+    :o: string representation of the oracle
+    :problem: The underlying problem that the oracle is giving observations for
+    """
+    oracle_mapping = {"truth": oracles.truth_oracle}
+
+    try:
+        return oracle_mapping[o]
+    except KeyError:
+        raise KeyError(f"{o} is not an accepted oracle (not in {oracle_mapping.keys()})")

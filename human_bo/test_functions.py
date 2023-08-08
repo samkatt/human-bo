@@ -7,7 +7,6 @@ from torch import Tensor
 
 
 class Zhou(SyntheticTestFunction):
-    # TODO: sounds like a thing that should be randomly initialized?
     optimal_value = 2.002595246981888
 
     def __init__(

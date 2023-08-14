@@ -1,21 +1,22 @@
-from botorch.models import SingleTaskGP
+"""Various 'constructor' functions to initiate components according to program inputs"""
+
 import torch
+from botorch.models import SingleTaskGP
 from botorch.acquisition import qMaxValueEntropy
 from botorch.acquisition.analytic import (
     ExpectedImprovement,
     UpperConfidenceBound,
     AcquisitionFunction,
 )
-from gpytorch.kernels import MaternKernel, RBFKernel, ScaleKernel
 from botorch.test_functions import (
     Branin,
     Hartmann,
     Rosenbrock,
     SyntheticTestFunction,
-    synthetic,
 )
-from human_bo.conf import CONFIG
-import human_bo.oracles as oracles
+from gpytorch.kernels import MaternKernel, RBFKernel, ScaleKernel
+
+from human_bo import oracles
 from human_bo.test_functions import Forrester, Zhou
 
 
@@ -35,10 +36,10 @@ def pick_test_function(func: str) -> SyntheticTestFunction:
 
     try:
         return test_function_mapping[func]
-    except KeyError:
+    except KeyError as error:
         raise KeyError(
             f"{func} is not an accepted test function (not in {test_function_mapping.keys()})"
-        )
+        ) from error
 
 
 def pick_kernel(ker: str, dim: int) -> ScaleKernel:
@@ -52,14 +53,15 @@ def pick_kernel(ker: str, dim: int) -> ScaleKernel:
     kernel_mapping: dict[str, ScaleKernel] = {
         "RBF": ScaleKernel(RBFKernel(ard_num_dims=dim)),
         "Matern": ScaleKernel(MaternKernel(ard_num_dims=dim)),
+        "Default": None,
     }
 
     try:
         return kernel_mapping[ker]
-    except:
+    except KeyError as error:
         raise KeyError(
             f"{ker} is not an accepted kernel (not in {kernel_mapping.keys()})"
-        )
+        ) from error
 
 
 def pick_acqf(
@@ -91,10 +93,10 @@ def pick_acqf(
 
     try:
         return acqf_mapping[acqf]
-    except KeyError:
+    except KeyError as error:
         raise KeyError(
             f"{acqf} is not an accepted acquisition function (not in {acqf_mapping.keys()})"
-        )
+        ) from error
 
 
 def pick_oracle(
@@ -115,7 +117,7 @@ def pick_oracle(
 
     try:
         return oracle_mapping[o]
-    except KeyError:
+    except KeyError as error:
         raise KeyError(
             f"{o} is not an accepted oracle (not in {oracle_mapping.keys()})"
-        )
+        ) from error

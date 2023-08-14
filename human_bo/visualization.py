@@ -1,3 +1,5 @@
+"""Helper functions for visualizations"""
+
 import matplotlib as mpl
 
 

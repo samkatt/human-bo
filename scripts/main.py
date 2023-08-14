@@ -5,12 +5,10 @@ import argparse
 
 import human_bo.conf as conf
 
-torch.set_default_dtype(torch.double)
-
-
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Command description.")
+    torch.set_default_dtype(torch.double)
 
+    parser = argparse.ArgumentParser(description="Command description.")
     for arg, values in conf.CONFIG.items():
         parser.add_argument(
             "-" + values["shorthand"],
@@ -39,7 +37,11 @@ if __name__ == "__main__":
     if os.path.isfile(path):
         print(f"File {path} already exists, aborting run!")
         exit()
+    if not os.path.isdir(args.save_path):
+        print(f"Save path {args.save_path} is not an existing directory")
+        exit()
 
+    print(f"Running experiment for {path}", end='', flush=True)
     res = core.eval_model(**exp_conf)
     res["conf"] = exp_conf
 

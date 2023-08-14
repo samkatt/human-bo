@@ -45,7 +45,7 @@ pytest
 ## Data
 
 Each run will generate a single result file called
-`<some-unique-identifier-seed>.pt`. This contains, among other things, the
+`<some-unique-identifiers>_seed>.pt`. This contains, among other things, the
 configurations of the run. In order to visualize, provide all files you'd like
 to include in the comparison and the script will figure out how to combine them
 (aggregate over runs with the same prefix). It will also try to ensure that

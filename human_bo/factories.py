@@ -7,9 +7,16 @@ from botorch.acquisition.analytic import (
     AcquisitionFunction,
 )
 from gpytorch.kernels import MaternKernel, RBFKernel, ScaleKernel
-from botorch.test_functions import Branin, Hartmann, Rosenbrock, SyntheticTestFunction
+from botorch.test_functions import (
+    Branin,
+    Hartmann,
+    Rosenbrock,
+    SyntheticTestFunction,
+    synthetic,
+)
+from human_bo.conf import CONFIG
 import human_bo.oracles as oracles
-from human_bo.test_functions import Zhou
+from human_bo.test_functions import Forrester, Zhou
 
 
 def pick_test_function(func: str) -> SyntheticTestFunction:
@@ -19,6 +26,7 @@ def pick_test_function(func: str) -> SyntheticTestFunction:
     """
 
     test_function_mapping: dict[str, SyntheticTestFunction] = {
+        "Forrester": Forrester(),
         "Zhou": Zhou(),
         "Hartmann": Hartmann(negate=True),
         "Branin": Branin(negate=True),
@@ -89,15 +97,25 @@ def pick_acqf(
         )
 
 
-def pick_oracle(o, problem: SyntheticTestFunction) -> oracles.Oracle:
-    """Instantiates the `Oracle` describes by `or`
+def pick_oracle(
+    o, optimal_x: list[float], problem: SyntheticTestFunction
+) -> oracles.Oracle:
+    """Instantiates the `Oracle` described by `o`
 
-    :o: string representation of the oracle
-    :problem: The underlying problem that the oracle is giving observations for
+    :optimal_x: optimal x values
+    :problem: The underlying function to optimize for
     """
-    oracle_mapping = {"truth": oracles.truth_oracle}
+    oracle_mapping = {
+        "truth": oracles.truth_oracle,
+        "gauss": oracles.GaussianOracle(
+            optimal_x,
+            problem._bounds,
+        ),
+    }
 
     try:
         return oracle_mapping[o]
     except KeyError:
-        raise KeyError(f"{o} is not an accepted oracle (not in {oracle_mapping.keys()})")
+        raise KeyError(
+            f"{o} is not an accepted oracle (not in {oracle_mapping.keys()})"
+        )

@@ -7,8 +7,10 @@ interpretation.
 """
 
 from typing import Protocol
+import torch
 
 from botorch.acquisition.analytic import torch
+from torch.distributions import multivariate_normal, normal
 
 
 class Oracle(Protocol):
@@ -17,13 +19,48 @@ class Oracle(Protocol):
     In this case, all we need it to do is take `y` values and give their observation.
     """
 
-    def __call__(self, y: torch.Tensor) -> torch.Tensor:
+    def __call__(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Our API: return the 'observed' value at `x` where `y` was the value of real `f(x)`"""
         ...
 
-def truth_oracle(y: torch.Tensor) -> torch.Tensor:
+
+def truth_oracle(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     """Returns the true values `y` as an oracle
 
+    :x: ignored
     :y: The true underlying y values of the problem to observe
     :returns: observations of `y`
     """
     return y
+
+
+class GaussianOracle(Oracle):
+    """The oracle that models the function as a Gaussian around the max."""
+
+    def __init__(self, optimal_x: list[float], bounds: list[tuple[float, float]]):
+        """Creates the Gaussian around `optimal_x` of deviation `s`
+
+        :optimal_x: the optimal value(s) for x
+        :bounds: The x bounds (min/max of each dimension)
+        """
+        assert len(bounds) == len(optimal_x)
+
+        sigma = [(max - min) / 5 for min, max in bounds]
+        dim = len(optimal_x)
+
+        self.y_multiplier = float(dim)
+
+        if dim == 1:
+            self.gauss = normal.Normal(torch.tensor(optimal_x), scale=sigma[0])
+        else:
+            self.gauss = multivariate_normal.MultivariateNormal(
+                torch.tensor(optimal_x), torch.diag(torch.tensor(sigma))
+            )
+
+    def __call__(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Returns `Normal(x)`
+
+        :x: the input value to our Gaussian
+        :y: ignored
+        """
+        return torch.exp(self.gauss.log_prob(x)) * self.y_multiplier

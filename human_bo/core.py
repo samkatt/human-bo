@@ -5,6 +5,7 @@ from botorch.models import SingleTaskGP
 from botorch.optim import optimize_acqf
 from gpytorch.mlls import ExactMarginalLogLikelihood
 from human_bo import factories
+from human_bo.conf import CONFIG
 
 
 def eval_model(
@@ -24,15 +25,19 @@ def eval_model(
     problem = factories.pick_test_function(function)
     bounds = torch.tensor(problem._bounds).T
     dim = bounds.shape[1]
+    optimal_x = CONFIG["function"]["choices"][function]["optimal_x"]
 
-    observation_function = factories.pick_oracle(oracle, problem)
+    observation_function = factories.pick_oracle(
+        oracle, optimal_x[torch.randint(0, len(optimal_x), size=(1,))], problem
+    )
     K = factories.pick_kernel(kernel, dim)
 
     # Initial training.
     # TODO: hardcoded noise level, but should be function-dependent.
     sigma = 0.01
     train_X = bounds[0] + (bounds[1] - bounds[0]) * torch.rand(n_init, dim)
-    train_Y = problem(train_X).view(-1, 1)
+    true_Y = problem(train_X).view(-1, 1)
+    train_Y = observation_function(train_X, true_Y)
     train_Y = train_Y + sigma * torch.randn(size=train_Y.shape)
 
     gpr = SingleTaskGP(train_X, train_Y, covar_module=K)
@@ -53,14 +58,22 @@ def eval_model(
             raw_samples=512,
         )
 
-        y = observation_function(problem(candidates))
+        true_y = problem(candidates)
+        train_y = observation_function(candidates, true_y)
 
         train_X = torch.cat((train_X, candidates))
-        train_Y = torch.cat((train_Y, y.view(-1, 1)))
+        train_Y = torch.cat((train_Y, train_y.view(-1, 1)))
+        true_Y = torch.cat((true_Y, true_y.view(-1, 1)))
+
         regrets[b + 1] = problem.optimal_value - train_Y.max()
 
         gpr = SingleTaskGP(train_X, train_Y, covar_module=K)
         mll = ExactMarginalLogLikelihood(gpr.likelihood, gpr)
         fit_gpytorch_model(mll, max_retries=10)
 
-    return {"train_X": train_X, "train_Y": train_Y, "regrets": regrets}
+    return {
+        "train_X": train_X,
+        "train_Y": train_Y,
+        "regrets": regrets,
+        "true_Y": true_Y,
+    }

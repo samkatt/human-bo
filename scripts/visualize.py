@@ -9,8 +9,7 @@ import matplotlib.pyplot as plt
 import torch
 import argparse
 from human_bo.conf import CONFIG
-from human_bo.factories import pick_kernel
-from human_bo.test_functions import Zhou
+from human_bo.factories import pick_kernel, pick_oracle, pick_test_function
 from human_bo.utils import recursively_filter_dict
 
 from human_bo.visualization import set_matplotlib_params
@@ -123,19 +122,23 @@ def visualize_end_result(files: list[str]) -> None:
 
     # Pre-compute some constants
     x_truth = torch.linspace(0.0, 1.0, 101).reshape(-1, 1)
-    y_truth = Zhou()(x_truth)
+    candidate_test_functions = [
+        f for f, c in CONFIG["function"]["choices"].items() if c["dims"] == 1
+    ]
 
-    # Loop over all files to plot
     for file in files:
-
-
         # Load the file.
         new_results = torch.load(file)
         conf = new_results["conf"]
 
-        if conf["function"] != "Zhou":
-            print(file + " is not an experiment on 'Zhou' and thus is excluded")
+        if conf["function"] not in candidate_test_functions:
+            print(
+                f"{file} is not an 1-dimensional experiment (in {candidate_test_functions}) and thus is excluded"
+            )
             continue
+
+        problem = pick_test_function(conf["function"])
+        y_truth = problem(x_truth)
 
         # Process results
         x, y = new_results["train_X"], new_results["train_Y"]
@@ -149,6 +152,11 @@ def visualize_end_result(files: list[str]) -> None:
         gpr_post_var = np.sqrt(gpr.likelihood(gpr(x_truth)).variance.detach().numpy())
 
         plt.figure()
+
+        for optimal_x in CONFIG["function"]["choices"][conf["function"]]["optimal_x"]:
+            oracle = pick_oracle(conf["oracle"], optimal_x, problem)(x_truth, y_truth)
+            plt.plot(x_truth, oracle, "g", label="Oracle function")
+
         plt.plot(x_truth, gpr_post_mean, "b", label="GP Mean function")
         plt.fill_between(
             x_truth.squeeze(),

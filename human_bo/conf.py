@@ -2,6 +2,7 @@
 
 from argparse import Namespace
 from typing import Any
+import math
 
 
 CONFIG = {
@@ -40,6 +41,21 @@ CONFIG = {
         "shorthand": "f",
         "help": "Test function to find max of",
         "tags": {"experiment-parameter"},
+        "choices": {
+            "Zhou": {"dims": 1, "optimal_x": [[0.34], [0.68]]},
+            "Forrester": {"dims": 1, "optimal_x": [[1.0]]},
+            "Hartmann": {
+                "dims": 6,
+                "optimal_x": [
+                    [0.20169, 0.150011, 0.476874, 0.275332, 0.311652, 0.6573]
+                ],
+            },
+            "Branin": {
+                "dims": 2,
+                "optimal_x": [[-math.pi, 12.275], [math.pi, 2.275], [9.42478, 2.475]],
+            },
+            "Rosenbrock": {"dims": "n", "optimal_x": [[1.0, 1.0]]},
+        },
     },
     "oracle": {
         "type": str,

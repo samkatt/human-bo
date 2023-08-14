@@ -1,5 +1,7 @@
 """Odd functions one may need but is otherwise not really core."""
 
+import torch
+
 
 def recursively_filter_dict(d: dict, predicate):
     """Will do DFS through `d` and return all elements for which `predicate` returns True
@@ -20,3 +22,21 @@ def recursively_filter_dict(d: dict, predicate):
         if isinstance(v, dict):
             for v in recursively_filter_dict(v, predicate):
                 yield v
+
+
+def normalize_data(x: torch.Tensor) -> torch.Tensor:
+    """Normalizes `x` such that its mean is 0 and standard deviation is 1.
+
+    NOTE: does not support more than 1 dimension for `x`
+
+    :x: 1-dimensional data to normalize
+    :returns: normalized  `x`
+    """
+    assert (
+        len(x.shape) == 1 or len(x.shape) == 2 and x.shape[1] == 1
+    ), f"`normalize_data` currently does not support multiple {x.shape} dimensions"
+
+    mean = x.mean()
+    std = x.std()
+
+    return (x - mean) / std

@@ -1,4 +1,6 @@
 from typing import Any
+from botorch.models.transforms.input import Normalize
+from botorch.models.transforms.outcome import Standardize
 import torch
 from botorch.fit import fit_gpytorch_model
 from botorch.models import SingleTaskGP
@@ -6,6 +8,7 @@ from botorch.optim import optimize_acqf
 from gpytorch.mlls import ExactMarginalLogLikelihood
 from human_bo import factories
 from human_bo.conf import CONFIG
+from human_bo.utils import normalize_data
 
 
 def eval_model(
@@ -40,18 +43,18 @@ def eval_model(
     train_Y = observation_function(train_X, true_Y)
     train_Y = train_Y + sigma * torch.randn(size=train_Y.shape)
 
-    gpr = SingleTaskGP(train_X, train_Y, covar_module=K)
+    gpr = SingleTaskGP(train_X, train_Y, covar_module=K, input_transform=Normalize(d=dim), outcome_transform=Standardize(m=1))
     mll = ExactMarginalLogLikelihood(gpr.likelihood, gpr)
     fit_gpytorch_model(mll, max_retries=10)
 
     ##### BO LOOP
     regrets = torch.zeros(budget + 1)
-    regrets[0] = problem.optimal_value - train_Y.max()
+    regrets[0] = problem.optimal_value - true_Y.max()
     for b in range(budget):
         print(f"Query {b}")
 
         candidates, _ = optimize_acqf(
-            acq_function=factories.pick_acqf(acqf, train_Y, gpr, bounds),
+            acq_function=factories.pick_acqf(acqf, normalize_data(train_Y), gpr, bounds),
             bounds=bounds,
             q=1,  # batch size, i.e. we only query one point
             num_restarts=10,
@@ -65,9 +68,9 @@ def eval_model(
         train_Y = torch.cat((train_Y, train_y.view(-1, 1)))
         true_Y = torch.cat((true_Y, true_y.view(-1, 1)))
 
-        regrets[b + 1] = problem.optimal_value - train_Y.max()
+        regrets[b + 1] = problem.optimal_value - true_Y.max()
 
-        gpr = SingleTaskGP(train_X, train_Y, covar_module=K)
+        gpr = SingleTaskGP(train_X, normalize_data(train_Y), covar_module=K, input_transform=Normalize(d=dim), outcome_transform=Standardize(m=1))
         mll = ExactMarginalLogLikelihood(gpr.likelihood, gpr)
         fit_gpytorch_model(mll, max_retries=10)
 

@@ -12,9 +12,7 @@ from botorch.test_functions import (
     Hartmann,
     Rosenbrock,
     SyntheticTestFunction,
-    synthetic,
 )
-from human_bo.conf import CONFIG
 import human_bo.oracles as oracles
 from human_bo.test_functions import Forrester, Zhou
 

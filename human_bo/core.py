@@ -1,9 +1,14 @@
-from typing import Any
+"""Main functions for running experiments (`eval_model`)"""
+
 import torch
 from botorch.fit import fit_gpytorch_model
 from botorch.models import SingleTaskGP
+from botorch.models.transforms.input import Normalize
+from botorch.models.transforms.outcome import Standardize
 from botorch.optim import optimize_acqf
 from gpytorch.mlls import ExactMarginalLogLikelihood
+from typing import Any
+
 from human_bo import factories
 from human_bo.conf import CONFIG
 
@@ -30,7 +35,6 @@ def eval_model(
     observation_function = factories.pick_oracle(
         oracle, optimal_x[torch.randint(0, len(optimal_x), size=(1,))], problem
     )
-    K = factories.pick_kernel(kernel, dim)
 
     # Initial training.
     # TODO: hardcoded noise level, but should be function-dependent.
@@ -40,18 +44,24 @@ def eval_model(
     train_Y = observation_function(train_X, true_Y)
     train_Y = train_Y + sigma * torch.randn(size=train_Y.shape)
 
-    gpr = SingleTaskGP(train_X, train_Y, covar_module=K)
+    gpr = SingleTaskGP(
+        train_X,
+        train_Y,
+        covar_module=factories.pick_kernel(kernel, dim),
+        input_transform=Normalize(d=dim),
+        outcome_transform=Standardize(m=1),
+    )
     mll = ExactMarginalLogLikelihood(gpr.likelihood, gpr)
-    fit_gpytorch_model(mll, max_retries=10)
+    fit_gpytorch_model(mll)
 
-    ##### BO LOOP
-    regrets = torch.zeros(budget + 1)
-    regrets[0] = problem.optimal_value - train_Y.max()
-    for b in range(budget):
-        print(f"Query {b}")
+    # Main loop
+    for _ in range(budget):
+        print(".", end="", flush=True)
 
         candidates, _ = optimize_acqf(
-            acq_function=factories.pick_acqf(acqf, train_Y, gpr, bounds),
+            acq_function=factories.pick_acqf(
+                acqf, Standardize(m=1)(train_Y)[0], gpr, bounds
+            ),
             bounds=bounds,
             q=1,  # batch size, i.e. we only query one point
             num_restarts=10,
@@ -65,15 +75,20 @@ def eval_model(
         train_Y = torch.cat((train_Y, train_y.view(-1, 1)))
         true_Y = torch.cat((true_Y, true_y.view(-1, 1)))
 
-        regrets[b + 1] = problem.optimal_value - train_Y.max()
-
-        gpr = SingleTaskGP(train_X, train_Y, covar_module=K)
+        gpr = SingleTaskGP(
+            train_X,
+            train_Y,
+            covar_module=factories.pick_kernel(kernel, dim),
+            input_transform=Normalize(d=dim),
+            outcome_transform=Standardize(m=1),
+        )
         mll = ExactMarginalLogLikelihood(gpr.likelihood, gpr)
-        fit_gpytorch_model(mll, max_retries=10)
+        fit_gpytorch_model(mll)
+
+    print("")
 
     return {
         "train_X": train_X,
         "train_Y": train_Y,
-        "regrets": regrets,
         "true_Y": true_Y,
     }

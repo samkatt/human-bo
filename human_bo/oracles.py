@@ -2,14 +2,13 @@
 
 An "oracle" here is just something that determines the `y` value that is seen
 by the agent. This could just be the true `y` value of the function of which we
-are trying to find the mean ("truth"), but also a noisy observation, or human 
+are trying to find the mean ("truth"), but also a noisy observation, or human
 interpretation.
 """
 
 from typing import Protocol
-import torch
 
-from botorch.acquisition.analytic import torch
+import torch
 from torch.distributions import multivariate_normal, normal
 
 

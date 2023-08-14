@@ -1,3 +1,5 @@
+"""Helper functions for visualizations"""
+
 import matplotlib as mpl
 
 
@@ -25,12 +27,3 @@ def set_matplotlib_params():
             "axes.grid": True,
         }
     )
-
-
-def adapt_save_fig(fig, filename="test.pdf"):
-    """Remove right and top spines, set bbox_inches and dpi."""
-
-    for ax in fig.get_axes():
-        ax.spines["right"].set_visible(False)
-        ax.spines["top"].set_visible(False)
-    fig.savefig(filename, bbox_inches="tight", dpi=300)

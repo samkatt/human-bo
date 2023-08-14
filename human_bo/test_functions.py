@@ -1,4 +1,5 @@
-""" Test functions that are not implemented in BoTorch """
+"""Test functions that are not implemented in BoTorch"""
+
 from typing import List, Optional, Tuple
 
 import torch
@@ -7,6 +8,8 @@ from torch import Tensor, sin
 
 
 class Zhou(SyntheticTestFunction):
+    """The Zhou (1-dimensional) function (https://www.sfu.ca/~ssurjano/zhou98.html)"""
+
     optimal_value = 2.002595246981888
 
     def __init__(
@@ -36,6 +39,8 @@ class Zhou(SyntheticTestFunction):
 
 
 class Forrester(SyntheticTestFunction):
+    """The Forrester (1-dimensional) function (https://www.sfu.ca/~ssurjano/forretal08.html)"""
+
     optimal_value = 15.829731945974109  # Hand-computed `evaluate_true(1.0)`
 
     def __init__(

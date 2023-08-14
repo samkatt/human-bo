@@ -75,6 +75,8 @@ def from_ns(ns: Namespace) -> dict[str, Any]:
 
     conf = {}
     for k, v in CONFIG.items():
+        # v["type"] returns class (e.g. `int`).
+        # We use that to cast it to the correct value
         conf[k] = v["type"](ns_dict[k])
 
     return conf

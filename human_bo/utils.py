@@ -1,4 +1,24 @@
 """Odd functions one may need but is otherwise not really core."""
+import sys
+import traceback
+import warnings
+
+
+def warn_with_traceback(message, category, filename, lineno, file=None, line=None):
+    """Custom function to print (warning) traces properly
+
+    Taken from https://stackoverflow.com/questions/22373927/get-traceback-of-warnings.
+
+    Really, just for debugging and figuring out where the warnings are generated from.
+
+    To use:
+
+        import warnings
+        warnings.showwarning = utils.warn_with_traceback
+    """
+    log = file if hasattr(file, "write") else sys.stderr
+    traceback.print_stack(file=log)
+    log.write(warnings.formatwarning(message, category, filename, lineno, line))
 
 
 def recursively_filter_dict(d: dict, predicate):

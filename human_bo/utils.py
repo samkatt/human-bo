@@ -1,6 +1,24 @@
 """Odd functions one may need but is otherwise not really core."""
+import sys
+import traceback
+import warnings
 
-import torch
+
+def warn_with_traceback(message, category, filename, lineno, file=None, line=None):
+    """Custom function to print (warning) traces properly
+
+    Taken from https://stackoverflow.com/questions/22373927/get-traceback-of-warnings.
+
+    Really, just for debugging and figuring out where the warnings are generated from.
+
+    To use:
+
+        import warnings
+        warnings.showwarning = utils.warn_with_traceback
+    """
+    log = file if hasattr(file, "write") else sys.stderr
+    traceback.print_stack(file=log)
+    log.write(warnings.formatwarning(message, category, filename, lineno, line))
 
 
 def recursively_filter_dict(d: dict, predicate):
@@ -22,21 +40,3 @@ def recursively_filter_dict(d: dict, predicate):
         if isinstance(v, dict):
             for v in recursively_filter_dict(v, predicate):
                 yield v
-
-
-def normalize_data(x: torch.Tensor) -> torch.Tensor:
-    """Normalizes `x` such that its mean is 0 and standard deviation is 1.
-
-    NOTE: does not support more than 1 dimension for `x`
-
-    :x: 1-dimensional data to normalize
-    :returns: normalized  `x`
-    """
-    assert (
-        len(x.shape) == 1 or len(x.shape) == 2 and x.shape[1] == 1
-    ), f"`normalize_data` currently does not support multiple {x.shape} dimensions"
-
-    mean = x.mean()
-    std = x.std()
-
-    return (x - mean) / std

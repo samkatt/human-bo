@@ -10,9 +10,9 @@ import torch
 import argparse
 from human_bo.conf import CONFIG
 from human_bo.factories import pick_kernel, pick_oracle, pick_test_function
-from human_bo.utils import recursively_filter_dict
 
 from human_bo.visualization import set_matplotlib_params
+from human_bo.utils import recursively_filter_dict
 
 
 def compare_regrets_over_time(files: list[str]) -> None:
@@ -180,7 +180,7 @@ def visualize_end_result(files: list[str]) -> None:
                     v
                     for k, v in conf.items()
                     if "experiment-parameter" in CONFIG[k]["tags"]
-                ]
+                ] + [str(conf["seed"])]
             )
         )
         plt.tight_layout()

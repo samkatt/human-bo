@@ -8,7 +8,6 @@ from botorch.optim import optimize_acqf
 from gpytorch.mlls import ExactMarginalLogLikelihood
 from human_bo import factories
 from human_bo.conf import CONFIG
-from human_bo.utils import normalize_data
 
 
 def eval_model(
@@ -43,7 +42,13 @@ def eval_model(
     train_Y = observation_function(train_X, true_Y)
     train_Y = train_Y + sigma * torch.randn(size=train_Y.shape)
 
-    gpr = SingleTaskGP(train_X, train_Y, covar_module=K, input_transform=Normalize(d=dim), outcome_transform=Standardize(m=1))
+    gpr = SingleTaskGP(
+        train_X,
+        train_Y,
+        covar_module=K,
+        input_transform=Normalize(d=dim),
+        outcome_transform=Standardize(m=1),
+    )
     mll = ExactMarginalLogLikelihood(gpr.likelihood, gpr)
     fit_gpytorch_model(mll, max_retries=10)
 
@@ -51,10 +56,12 @@ def eval_model(
     regrets = torch.zeros(budget + 1)
     regrets[0] = problem.optimal_value - true_Y.max()
     for b in range(budget):
-        print(f"Query {b}")
+        print(".", end="", flush=True)
 
         candidates, _ = optimize_acqf(
-            acq_function=factories.pick_acqf(acqf, normalize_data(train_Y), gpr, bounds),
+            acq_function=factories.pick_acqf(
+                acqf, Standardize(m=1)(train_Y)[0], gpr, bounds
+            ),
             bounds=bounds,
             q=1,  # batch size, i.e. we only query one point
             num_restarts=10,
@@ -70,9 +77,17 @@ def eval_model(
 
         regrets[b + 1] = problem.optimal_value - true_Y.max()
 
-        gpr = SingleTaskGP(train_X, normalize_data(train_Y), covar_module=K, input_transform=Normalize(d=dim), outcome_transform=Standardize(m=1))
+        gpr = SingleTaskGP(
+            train_X,
+            train_Y,
+            covar_module=K,
+            input_transform=Normalize(d=dim),
+            outcome_transform=Standardize(m=1),
+        )
         mll = ExactMarginalLogLikelihood(gpr.likelihood, gpr)
         fit_gpytorch_model(mll, max_retries=10)
+
+    print("")
 
     return {
         "train_X": train_X,

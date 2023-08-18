@@ -53,9 +53,7 @@ def eval_model(
     fit_gpytorch_model(mll, max_retries=10)
 
     ##### BO LOOP
-    regrets = torch.zeros(budget + 1)
-    regrets[0] = problem.optimal_value - true_Y.max()
-    for b in range(budget):
+    for _ in range(budget):
         print(".", end="", flush=True)
 
         candidates, _ = optimize_acqf(
@@ -75,8 +73,6 @@ def eval_model(
         train_Y = torch.cat((train_Y, train_y.view(-1, 1)))
         true_Y = torch.cat((true_Y, true_y.view(-1, 1)))
 
-        regrets[b + 1] = problem.optimal_value - true_Y.max()
-
         gpr = SingleTaskGP(
             train_X,
             train_Y,
@@ -92,6 +88,5 @@ def eval_model(
     return {
         "train_X": train_X,
         "train_Y": train_Y,
-        "regrets": regrets,
         "true_Y": true_Y,
     }

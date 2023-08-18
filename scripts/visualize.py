@@ -26,10 +26,15 @@ def compare_regrets_over_time(files: list[str]) -> None:
 
     results = {}
     for file in files:
-        # Load the file.
+        # Load the file and initiated configurations and results.
         new_results = torch.load(file)
         new_conf = new_results["conf"]
-        regrets = new_results["regrets"]
+
+        n_init, budget = new_conf["n_init"], new_conf["budget"]
+        optimal_value = pick_test_function(new_conf["function"]).optimal_value
+        y = new_results["true_Y"]
+
+        regrets = torch.tensor([optimal_value - y[:n_init + i].max() for i in range(budget + 1)])
 
         # Make sure experiment shares the same parameters.
         for k, c in CONFIG.items():
@@ -76,7 +81,8 @@ def compare_regrets_over_time(files: list[str]) -> None:
         e["mean_regret"] = r.mean(axis=1)
         e["std_regret"] = 1.96 * r.std(axis=1) / math.sqrt(r.shape[1])
 
-    fig = plt.figure()
+    fig = plt.figure(figsize=(8, 6))
+
     for e in recursively_filter_dict(
         results, lambda _, v: isinstance(v, dict) and "regrets" in v
     ):
@@ -105,11 +111,11 @@ def compare_regrets_over_time(files: list[str]) -> None:
         )  # careful with the std bands when plotting in log scale (nonsymmetric)
         plt.yscale("log")
 
+    plt.xlabel("Budget (Iterations)")
+    plt.ylabel("Simple regret")
     fig.legend(shadow=True)
-    fig.supxlabel("Budget (Iterations)")
-    fig.supylabel("Simple regret")
+    fig.set_tight_layout({"pad": 0})
 
-    plt.tight_layout()
     plt.show()
 
 
@@ -151,7 +157,7 @@ def visualize_end_result(files: list[str]) -> None:
         gpr_post_mean = gpr.likelihood(gpr(x_truth)).mean.detach().numpy()
         gpr_post_var = np.sqrt(gpr.likelihood(gpr(x_truth)).variance.detach().numpy())
 
-        plt.figure()
+        fig = plt.figure()
 
         for optimal_x in CONFIG["function"]["choices"][conf["function"]]["optimal_x"]:
             oracle = pick_oracle(conf["oracle"], optimal_x, problem)(x_truth, y_truth)
@@ -183,7 +189,8 @@ def visualize_end_result(files: list[str]) -> None:
                 ] + [str(conf["seed"])]
             )
         )
-        plt.tight_layout()
+
+        fig.set_tight_layout({"pad": 0})
 
     plt.show()
 

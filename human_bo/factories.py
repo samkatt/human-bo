@@ -50,6 +50,7 @@ def pick_kernel(ker: str, dim: int) -> ScaleKernel:
     kernel_mapping: dict[str, ScaleKernel] = {
         "RBF": ScaleKernel(RBFKernel(ard_num_dims=dim)),
         "Matern": ScaleKernel(MaternKernel(ard_num_dims=dim)),
+        "NONE": None,
     }
 
     try:

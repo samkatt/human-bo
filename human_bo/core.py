@@ -42,15 +42,16 @@ def eval_model(
     train_Y = observation_function(train_X, true_Y)
     train_Y = train_Y + sigma * torch.randn(size=train_Y.shape)
 
+    print("NOTE: currently using default kernel regardless of configrations/input")
     gpr = SingleTaskGP(
         train_X,
         train_Y,
-        covar_module=K,
+        # covar_module=K,
         input_transform=Normalize(d=dim),
         outcome_transform=Standardize(m=1),
     )
     mll = ExactMarginalLogLikelihood(gpr.likelihood, gpr)
-    fit_gpytorch_model(mll, max_retries=10)
+    fit_gpytorch_model(mll)
 
     ##### BO LOOP
     for _ in range(budget):
@@ -76,12 +77,12 @@ def eval_model(
         gpr = SingleTaskGP(
             train_X,
             train_Y,
-            covar_module=K,
+            # covar_module=K,
             input_transform=Normalize(d=dim),
             outcome_transform=Standardize(m=1),
         )
         mll = ExactMarginalLogLikelihood(gpr.likelihood, gpr)
-        fit_gpytorch_model(mll, max_retries=10)
+        fit_gpytorch_model(mll)
 
     print("")
 

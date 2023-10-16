@@ -125,7 +125,7 @@ def compare_regrets_over_time(files: list[str]) -> None:
     plt.show()
 
 
-def visualize_trajectory(file: str) -> None:
+def visualize_trajectory(file: str, *, plot_oracles=True) -> None:
     """Visualizes the end result (approximation, sample data, etc)
 
     :file: file path (string)
@@ -203,11 +203,13 @@ def visualize_trajectory(file: str) -> None:
         m, var, x, y, acqf = r["gpr_post_mean"], r["gpr_post_var"], r["x"], r["y"], r["acqf"]
 
         # Plot global
-        for oracle in oracles:
-            ax.plot(x_linspace, oracle, "g", label="Oracle")
+        if plot_oracles:
+            for oracle in oracles:
+                ax.plot(x_linspace, oracle, "g", label="Oracle")
+
         ax.plot(x_linspace, y_truth, label="Ground Truth")
 
-        # Plot results.
+        # Plot results
         ax.plot(x_linspace, m, "b", label="GP Mean function")
         ax.fill_between(
             x_linspace.squeeze(),
@@ -223,7 +225,7 @@ def visualize_trajectory(file: str) -> None:
                 queries[n_init + b], observations[n_init + b], color="r", label="Next"
             )
 
-        ax.plot(x_linspace, acqf, linestyle="dotted", color="green", linewidth=3, label=conf["acqf"])
+        ax.plot(x_linspace, acqf, linestyle="dotted", color="orange", linewidth=3, label=conf["acqf"])
 
         # Basic plotting style
         ax.set_xlabel("x")
@@ -278,6 +280,13 @@ if __name__ == "__main__":
         type=str,
         help="All files that need to be processed",
     )
+    parser.add_argument(
+        "--plot-oracles",
+        type=bool,
+        help="Whether to display oracle when plotting type=trajectory",
+        default=True,
+        action=argparse.BooleanOptionalAction
+    )
 
     args = parser.parse_args()
 
@@ -292,4 +301,4 @@ if __name__ == "__main__":
         if len(args.files) != 1:
             raise ValueError("Please only provide 1 file when plotting trajectory")
 
-        visualize_trajectory(args.files[0])
+        visualize_trajectory(args.files[0], plot_oracles=args.plot_oracles)

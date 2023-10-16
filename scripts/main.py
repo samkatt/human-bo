@@ -15,6 +15,7 @@ if __name__ == "__main__":
             "--" + arg,
             help=values["help"],
             type=values["type"],
+            required=True,
         )
 
     parser.add_argument("-p", "--save_path", help="Name of saving directory.", type=str)

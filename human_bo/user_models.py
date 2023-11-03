@@ -1,6 +1,6 @@
-"""Implements oracles in BO
+"""Implements user models for BO
 
-An "oracle" here is just something that determines the `y` value that is seen
+A user model here is just something that determines the `y` value that is seen
 by the agent. This could just be the true `y` value of the function of which we
 are trying to find the mean ("truth"), but also a noisy observation, or human
 interpretation.
@@ -13,8 +13,8 @@ from torch.distributions import multivariate_normal, normal
 from botorch.acquisition.analytic import torch
 
 
-class Oracle(Protocol):
-    """Describes the API of an oracle.
+class UserModel(Protocol):
+    """Describes the API of a user model.
 
     In this case, all we need it to do is take `y` values and give their observation.
     """
@@ -24,7 +24,7 @@ class Oracle(Protocol):
         ...
 
 
-def truth_oracle(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+def oracle(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     """Returns the true values `y` as an oracle
 
     :x: ignored
@@ -34,8 +34,8 @@ def truth_oracle(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     return y
 
 
-class GaussianOracle(Oracle):
-    """The oracle that models the function as a Gaussian around the max."""
+class GaussianUserModel(UserModel):
+    """The user model that returns y from a Gaussian around the max x."""
 
     def __init__(self, optimal_x: list[float], bounds: list[tuple[float, float]]):
         """Creates the Gaussian around `optimal_x` of deviation `s`

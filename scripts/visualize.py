@@ -13,7 +13,7 @@ import torch
 import argparse
 from human_bo import utils
 from human_bo.conf import CONFIG
-from human_bo.factories import pick_acqf, pick_kernel, pick_oracle, pick_test_function
+from human_bo.factories import pick_acqf, pick_kernel, pick_user_model, pick_test_function
 
 from human_bo.visualization import set_matplotlib_params
 from human_bo.utils import recursively_filter_dict
@@ -125,7 +125,7 @@ def compare_regrets_over_time(files: list[str]) -> None:
     plt.show()
 
 
-def visualize_trajectory(file: str, *, plot_oracles=True) -> None:
+def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
     """Visualizes the end result (approximation, sample data, etc)
 
     :file: file path (string)
@@ -157,8 +157,8 @@ def visualize_trajectory(file: str, *, plot_oracles=True) -> None:
 
     # Get "global" (across all time steps) values.
     optimal_xs = CONFIG["function"]["choices"][conf["function"]]["optimal_x"]
-    oracles = [
-        pick_oracle(conf["oracle"], optimal_x, problem)(x_linspace, y_truth)
+    user_models = [
+        pick_user_model(conf["user_model"], optimal_x, problem)(x_linspace, y_truth)
         for optimal_x in optimal_xs
     ]
 
@@ -203,9 +203,10 @@ def visualize_trajectory(file: str, *, plot_oracles=True) -> None:
         m, var, x, y, acqf = r["gpr_post_mean"], r["gpr_post_var"], r["x"], r["y"], r["acqf"]
 
         # Plot global
-        if plot_oracles:
-            for oracle in oracles:
-                ax.plot(x_linspace, oracle, "g", label="Oracle")
+        if plot_user_model:
+            for user_model in user_models:
+                __import__('pdb').set_trace()
+                ax.plot(x_linspace, user_model, "g", label="User model")
 
         ax.plot(x_linspace, y_truth, label="Ground Truth")
 
@@ -281,9 +282,9 @@ if __name__ == "__main__":
         help="All files that need to be processed",
     )
     parser.add_argument(
-        "--plot-oracles",
+        "--plot-user-model",
         type=bool,
-        help="Whether to display oracle when plotting type=trajectory",
+        help="Whether to display user model when plotting type=trajectory",
         default=True,
         action=argparse.BooleanOptionalAction
     )
@@ -301,4 +302,4 @@ if __name__ == "__main__":
         if len(args.files) != 1:
             raise ValueError("Please only provide 1 file when plotting trajectory")
 
-        visualize_trajectory(args.files[0], plot_oracles=args.plot_oracles)
+        visualize_trajectory(args.files[0], plot_user_model=args.plot_user_model)

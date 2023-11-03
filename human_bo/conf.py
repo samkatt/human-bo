@@ -57,9 +57,9 @@ CONFIG = {
             "Rosenbrock": {"dims": "n", "optimal_x": [[1.0, 1.0]]},
         },
     },
-    "oracle": {
+    "user_model": {
         "type": str,
-        "shorthand": "o",
+        "shorthand": "u",
         "help": "The mechanism through which queries are given",
         "tags": {"experiment-parameter"},
     },

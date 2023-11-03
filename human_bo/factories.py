@@ -16,7 +16,7 @@ from botorch.test_functions import (
 )
 from gpytorch.kernels import MaternKernel, RBFKernel, ScaleKernel
 
-from human_bo import oracles
+from human_bo import user_models
 from human_bo.test_functions import Forrester, Zhou
 
 
@@ -99,25 +99,25 @@ def pick_acqf(
         ) from error
 
 
-def pick_oracle(
-    o, optimal_x: list[float], problem: SyntheticTestFunction
-) -> oracles.Oracle:
-    """Instantiates the `Oracle` described by `o`
+def pick_user_model(
+    u, optimal_x: list[float], problem: SyntheticTestFunction
+) -> user_models.UserModel:
+    """Instantiates the `UserModel` described by `u`
 
     :optimal_x: optimal x values
     :problem: The underlying function to optimize for
     """
-    oracle_mapping = {
-        "truth": oracles.truth_oracle,
-        "gauss": oracles.GaussianOracle(
+    user_model_mapping = {
+        "oracle": user_models.oracle,
+        "gauss": user_models.GaussianUserModel(
             optimal_x,
             problem._bounds,
         ),
     }
 
     try:
-        return oracle_mapping[o]
+        return user_model_mapping[u]
     except KeyError as error:
         raise KeyError(
-            f"{o} is not an accepted oracle (not in {oracle_mapping.keys()})"
+            f"{u} is not an accepted user model (not in {user_model_mapping.keys()})"
         ) from error

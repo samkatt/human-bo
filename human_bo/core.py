@@ -15,7 +15,7 @@ from human_bo.conf import CONFIG
 
 def eval_model(
     function: str,
-    oracle: str,
+    user_model: str,
     kernel: str,
     acqf: str,
     n_init: int,
@@ -32,8 +32,8 @@ def eval_model(
     dim = bounds.shape[1]
     optimal_x = CONFIG["function"]["choices"][function]["optimal_x"]
 
-    observation_function = factories.pick_oracle(
-        oracle, optimal_x[torch.randint(0, len(optimal_x), size=(1,))], problem
+    observation_function = factories.pick_user_model(
+        user_model, optimal_x[torch.randint(0, len(optimal_x), size=(1,))], problem
     )
 
     # Initial training.

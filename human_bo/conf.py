@@ -1,9 +1,8 @@
 """Contains data and functions for handling experiment configurations"""
 
+import math
 from argparse import Namespace
 from typing import Any
-import math
-
 
 CONFIG = {
     "seed": {
@@ -11,57 +10,77 @@ CONFIG = {
         "shorthand": "s",
         "help": "Random seed to run the experiment",
         "tags": {},
+        "parser-arguments": {"required": True},
     },
     "budget": {
         "type": int,
         "shorthand": "b",
         "help": "Number of queries",
         "tags": {"experiment-hyper-parameter"},
+        "parser-arguments": {"required": True},
     },
     "n_init": {
         "type": int,
         "shorthand": "ni",
         "help": "Number of initial data points",
         "tags": {"experiment-hyper-parameter"},
+        "parser-arguments": {"required": True},
     },
     "kernel": {
         "type": str,
         "shorthand": "k",
         "help": "Kernel of the GP",
         "tags": {"experiment-parameter"},
+        "parser-arguments": {"required": True},
     },
     "acqf": {
         "type": str,
         "shorthand": "a",
         "help": "Acquisition function used",
         "tags": {"experiment-parameter"},
+        "parser-arguments": {"required": True},
     },
     "function": {
         "type": str,
         "shorthand": "f",
         "help": "Test function to find max of",
         "tags": {"experiment-parameter"},
-        "choices": {
-            "Zhou": {"dims": 1, "optimal_x": [[0.34], [0.68]]},
-            "Forrester": {"dims": 1, "optimal_x": [[1.0]]},
-            "Hartmann": {
-                "dims": 6,
-                "optimal_x": [
-                    [0.20169, 0.150011, 0.476874, 0.275332, 0.311652, 0.6573]
-                ],
+        "parser-arguments": {
+            "required": True,
+            "choices": {
+                "Zhou": {"dims": 1, "optimal_x": [[0.34], [0.68]]},
+                "Forrester": {"dims": 1, "optimal_x": [[1.0]]},
+                "Hartmann": {
+                    "dims": 6,
+                    "optimal_x": [
+                        [0.20169, 0.150011, 0.476874, 0.275332, 0.311652, 0.6573]
+                    ],
+                },
+                "Branin": {
+                    "dims": 2,
+                    "optimal_x": [
+                        [-math.pi, 12.275],
+                        [math.pi, 2.275],
+                        [9.42478, 2.475],
+                    ],
+                },
+                "Rosenbrock": {"dims": "n", "optimal_x": [[1.0, 1.0]]},
             },
-            "Branin": {
-                "dims": 2,
-                "optimal_x": [[-math.pi, 12.275], [math.pi, 2.275], [9.42478, 2.475]],
-            },
-            "Rosenbrock": {"dims": "n", "optimal_x": [[1.0, 1.0]]},
         },
+    },
+    "function_noise": {
+        "type": float,
+        "shorthand": "e",
+        "help": "The Gaussian noise (variation) with which function `f` is observed",
+        "tags": {"experiment-hyper-parameter"},
+        "parser-arguments": {"default": 0.01},
     },
     "user_model": {
         "type": str,
         "shorthand": "u",
         "help": "The mechanism through which queries are given",
         "tags": {"experiment-parameter"},
+        "parser-arguments": {"choices": {"oracle", "gauss"}, "default": "oracle"},
     },
 }
 

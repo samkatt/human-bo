@@ -10,7 +10,6 @@ from typing import Protocol
 
 import torch
 from torch.distributions import multivariate_normal, normal
-from botorch.acquisition.analytic import torch
 
 
 class UserModel(Protocol):

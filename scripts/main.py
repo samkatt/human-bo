@@ -1,9 +1,10 @@
-import os
-import torch
-from human_bo import core
 import argparse
+import os
+
+import torch
 
 import human_bo.conf as conf
+from human_bo import core
 
 if __name__ == "__main__":
     torch.set_default_dtype(torch.double)
@@ -15,7 +16,7 @@ if __name__ == "__main__":
             "--" + arg,
             help=values["help"],
             type=values["type"],
-            required=True,
+            **values["parser-arguments"],
         )
 
     parser.add_argument("-p", "--save_path", help="Name of saving directory.", type=str)
@@ -42,8 +43,8 @@ if __name__ == "__main__":
         print(f"Save path {args.save_path} is not an existing directory")
         exit()
 
-    print(f"Running experiment for {path}", end='', flush=True)
-    res = core.eval_model(**exp_conf)
+    print(f"Running experiment for {path}", end="", flush=True)
+    res = core.human_feedback_experiment(**exp_conf)
     res["conf"] = exp_conf
 
     torch.save(res, path)

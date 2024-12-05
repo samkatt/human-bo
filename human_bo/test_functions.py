@@ -10,12 +10,12 @@ from torch import Tensor, sin
 class Zhou(SyntheticTestFunction):
     """The Zhou (1-dimensional) function (https://www.sfu.ca/~ssurjano/zhou98.html)"""
 
-    optimal_value = 2.002595246981888
+    _optimal_value = 2.002595246981888
 
     def __init__(
         self,
         noise_std: Optional[float] = None,
-        negate: bool = False,
+        negate: bool = True,
         bounds: Optional[List[Tuple[float, float]]] = None,
     ) -> None:
         r"""
@@ -41,12 +41,12 @@ class Zhou(SyntheticTestFunction):
 class Forrester(SyntheticTestFunction):
     """The Forrester (1-dimensional) function (https://www.sfu.ca/~ssurjano/forretal08.html)"""
 
-    optimal_value = 15.829731945974109  # Hand-computed `evaluate_true(1.0)`
+    _optimal_value = 15.829731945974109  # Hand-computed `evaluate_true(1.0)`
 
     def __init__(
         self,
         noise_std: Optional[float] = None,
-        negate: bool = False,
+        negate: bool = True,
         bounds: Optional[List[Tuple[float, float]]] = None,
     ) -> None:
         """Initiates the Forrester function

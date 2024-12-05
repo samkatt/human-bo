@@ -1,4 +1,5 @@
 """Odd functions one may need but is otherwise not really core."""
+
 import sys
 import traceback
 import warnings
@@ -38,5 +39,4 @@ def recursively_filter_dict(d: dict, predicate):
             yield v
 
         if isinstance(v, dict):
-            for v in recursively_filter_dict(v, predicate):
-                yield v
+            yield from recursively_filter_dict(v, predicate)

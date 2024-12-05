@@ -1,4 +1,6 @@
-"""Main functions for running experiments (`eval_model`)"""
+"""Main functions for running experiments"""
+
+from typing import Any
 
 import torch
 from botorch.fit import fit_gpytorch_model
@@ -7,13 +9,12 @@ from botorch.models.transforms.input import Normalize
 from botorch.models.transforms.outcome import Standardize
 from botorch.optim import optimize_acqf
 from gpytorch.mlls import ExactMarginalLogLikelihood
-from typing import Any
 
 from human_bo import factories
 from human_bo.conf import CONFIG
 
 
-def eval_model(
+def human_feedback_experiment(
     function: str,
     user_model: str,
     kernel: str,
@@ -21,6 +22,7 @@ def eval_model(
     n_init: int,
     seed: int,
     budget: int,
+    function_noise: float,
 ) -> dict[str, Any]:
     """Main loop that handles all the work."""
 
@@ -30,54 +32,25 @@ def eval_model(
     problem = factories.pick_test_function(function)
     bounds = torch.tensor(problem._bounds).T
     dim = bounds.shape[1]
-    optimal_x = CONFIG["function"]["choices"][function]["optimal_x"]
+    optimal_x = CONFIG["function"]["parser-arguments"]["choices"][function]["optimal_x"]
 
     observation_function = factories.pick_user_model(
         user_model, optimal_x[torch.randint(0, len(optimal_x), size=(1,))], problem
     )
 
     # Initial training.
-    # TODO: hardcoded noise level, but should be function-dependent.
-    sigma = 0.01
-    train_X = bounds[0] + (bounds[1] - bounds[0]) * torch.rand(n_init, dim)
-    true_Y = problem(train_X).view(-1, 1)
-    train_Y = observation_function(train_X, true_Y)
-    train_Y = train_Y + sigma * torch.randn(size=train_Y.shape)
-
-    gpr = SingleTaskGP(
-        train_X,
-        train_Y,
-        covar_module=factories.pick_kernel(kernel, dim),
-        input_transform=Normalize(d=dim),
-        outcome_transform=Standardize(m=1),
-    )
-    mll = ExactMarginalLogLikelihood(gpr.likelihood, gpr)
-    fit_gpytorch_model(mll)
+    train_x = bounds[0] + (bounds[1] - bounds[0]) * torch.rand(n_init, dim)
+    true_y = problem(train_x).view(-1, 1)
+    train_y = observation_function(train_x, true_y)
+    train_y = train_y + function_noise * torch.randn(size=train_y.shape)
 
     # Main loop
     for _ in range(budget):
         print(".", end="", flush=True)
 
-        candidates, _ = optimize_acqf(
-            acq_function=factories.pick_acqf(
-                acqf, Standardize(m=1)(train_Y)[0], gpr, bounds
-            ),
-            bounds=bounds,
-            q=1,  # batch size, i.e. we only query one point
-            num_restarts=10,
-            raw_samples=512,
-        )
-
-        true_y = problem(candidates)
-        train_y = observation_function(candidates, true_y)
-
-        train_X = torch.cat((train_X, candidates))
-        train_Y = torch.cat((train_Y, train_y.view(-1, 1)))
-        true_Y = torch.cat((true_Y, true_y.view(-1, 1)))
-
         gpr = SingleTaskGP(
-            train_X,
-            train_Y,
+            train_x,
+            train_y,
             covar_module=factories.pick_kernel(kernel, dim),
             input_transform=Normalize(d=dim),
             outcome_transform=Standardize(m=1),
@@ -85,10 +58,28 @@ def eval_model(
         mll = ExactMarginalLogLikelihood(gpr.likelihood, gpr)
         fit_gpytorch_model(mll)
 
+        candidates, _ = optimize_acqf(
+            acq_function=factories.pick_acqf(
+                acqf, Standardize(m=1)(train_y)[0], gpr, bounds
+            ),
+            bounds=bounds,
+            q=1,  # batch size, i.e. we only query one point
+            num_restarts=10,
+            raw_samples=512,
+        )
+
+        new_true_y = problem(candidates)
+        # TODO: add noise?
+        new_train_y = observation_function(candidates, new_true_y)
+
+        train_x = torch.cat((train_x, candidates))
+        train_y = torch.cat((train_y, new_train_y.view(-1, 1)))
+        true_y = torch.cat((true_y, new_true_y.view(-1, 1)))
+
     print("")
 
     return {
-        "train_X": train_X,
-        "train_Y": train_Y,
-        "true_Y": true_Y,
+        "train_x": train_x,
+        "train_y": train_y,
+        "true_y": true_y,
     }

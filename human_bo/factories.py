@@ -1,19 +1,14 @@
 """Various 'constructor' functions to initiate components according to program inputs"""
 
 import torch
-from botorch.models import SingleTaskGP
 from botorch.acquisition import qMaxValueEntropy
 from botorch.acquisition.analytic import (
+    AcquisitionFunction,
     ExpectedImprovement,
     UpperConfidenceBound,
-    AcquisitionFunction,
 )
-from botorch.test_functions import (
-    Branin,
-    Hartmann,
-    Rosenbrock,
-    SyntheticTestFunction,
-)
+from botorch.models import SingleTaskGP
+from botorch.test_functions import Branin, Hartmann, Rosenbrock, SyntheticTestFunction
 from gpytorch.kernels import MaternKernel, RBFKernel, ScaleKernel
 
 from human_bo import user_models
@@ -27,8 +22,8 @@ def pick_test_function(func: str) -> SyntheticTestFunction:
     """
 
     test_function_mapping: dict[str, SyntheticTestFunction] = {
-        "Forrester": Forrester(),
-        "Zhou": Zhou(),
+        "Forrester": Forrester(negate=True),
+        "Zhou": Zhou(negate=True),
         "Hartmann": Hartmann(negate=True),
         "Branin": Branin(negate=True),
         "Rosenbrock": Rosenbrock(dim=2, negate=True, bounds=[(-5.0, 5.0), (-5.0, 5.0)]),
@@ -50,7 +45,7 @@ def pick_kernel(ker: str, dim: int) -> ScaleKernel:
     """
 
     # ScaleKernel adds the amplitude hyper-parameter
-    kernel_mapping: dict[str, ScaleKernel] = {
+    kernel_mapping: dict = {
         "RBF": ScaleKernel(RBFKernel(ard_num_dims=dim)),
         "Matern": ScaleKernel(MaternKernel(ard_num_dims=dim)),
         "Default": None,

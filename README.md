@@ -45,10 +45,10 @@ Either compare regrets (aggregates mean over different seed):
 python scripts/visualize.py -t regrets -f result-dir/*
 ```
 
-Or generate the "end" result, mostly for debugging:
+Or generate the full trajectory of a single run, mostly for debugging:
 
 ```sh
-python scripts/visualize.py -t end-result result-dir/Zhou_RBF_MES_1.pt result-dir/Zhou_RBF_MES_2.pt
+python scripts/visualize.py -t trajectory -f result-dir/Zhou_RBF_MES_1.pt
 ```
 
 ## Tests
@@ -59,7 +59,6 @@ Install and run `pytest`:
 python -m pip install pytest
 python -m pytest
 ```
-
 ## Data
 
 Each run will generate a single result file called `<some-unique-identifiers>_seed>.pt`.
@@ -74,7 +73,11 @@ It will also try to ensure that configurations are equal (e.g. budget is the sam
 There are `TODO` scattered in source code, which can always be fixed.
 I do not believe any of them are (currently) bugs, but they raise warnings from linters.
 
+- [?] Update python version.
+- [ ] Figure out function typing hints and apply.
+
 #### Move towards human-AI collaboration:
-- Add the expected interaction as function in `core.py`.
-- Implement mock implementations of necessary components.
-- Consider how to report results (move to B&W?).
+
+- [x] Add the expected interaction as function in `core.py`.
+- [ ] Implement mock implementations of necessary components.
+- [ ] Consider how to report results (move to B&W?).

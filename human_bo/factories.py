@@ -4,7 +4,7 @@ import torch
 from botorch.acquisition import qMaxValueEntropy
 from botorch.acquisition.analytic import (
     AcquisitionFunction,
-    ExpectedImprovement,
+    LogExpectedImprovement,
     UpperConfidenceBound,
 )
 from botorch.models import SingleTaskGP
@@ -83,7 +83,7 @@ def pick_acqf(
             gpr, beta=0.2  # 0.2 is basic value for normalized data,
         ),
         "MES": mes,
-        "EI": ExpectedImprovement(gpr, y.max()),
+        "EI": LogExpectedImprovement(gpr, y.max()),
     }
 
     try:

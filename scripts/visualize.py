@@ -8,8 +8,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from botorch import settings
-from botorch.fit import fit_gpytorch_model
+from botorch.fit import fit_gpytorch_mll
 from botorch.models import SingleTaskGP
+from botorch.models.transforms.input import Normalize
 from gpytorch.mlls import ExactMarginalLogLikelihood
 from matplotlib.widgets import Slider
 
@@ -42,7 +43,7 @@ def compare_regrets_over_time(files: list[str]) -> None:
 
         n_init, budget = new_conf["n_init"], new_conf["budget"]
         optimal_value = pick_test_function(new_conf["function"]).optimal_value
-        y = new_results["true_Y"]
+        y = new_results["true_y"]
 
         regrets = torch.tensor(
             [optimal_value - y[: n_init + i].max() for i in range(budget + 1)]
@@ -120,8 +121,10 @@ def compare_regrets_over_time(files: list[str]) -> None:
             mean - std,
             mean + std,
             alpha=0.2,
-        )  # careful with the std bands when plotting in log scale (not symmetric)
-        plt.yscale("log")
+        )
+
+        # Careful with the std bands when plotting in log scale (not symmetric)
+        # plt.yscale("log")
 
     plt.xlabel("Budget (Iterations)")
     plt.ylabel("Simple regret")
@@ -178,11 +181,11 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
         x, y = queries[: n_init + b], observations[: n_init + b]
 
         with settings.validate_input_scaling(False):
-            # We do not want to scale the GPR predictions to align them with real data points
-            gpr = SingleTaskGP(x, y, covar_module=pick_kernel(conf["kernel"], 1))
+            # We do not want to scale the GPR predictions to align them with real data points.
+            gpr = SingleTaskGP(x, y, covar_module=pick_kernel(conf["kernel"], 1), outcome_transform=None)
 
         mll = ExactMarginalLogLikelihood(gpr.likelihood, gpr)
-        fit_gpytorch_model(mll)
+        fit_gpytorch_mll(mll)
 
         gpr_post_mean = gpr.likelihood(gpr(x_linspace)).mean.detach().numpy()
         gpr_post_var = np.sqrt(

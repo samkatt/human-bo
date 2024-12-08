@@ -40,6 +40,7 @@ CONFIG = {
         "tags": {"experiment-parameter"},
         "parser-arguments": {"required": True},
     },
+    # TODO: rename?
     "function": {
         "type": str,
         "shorthand": "f",

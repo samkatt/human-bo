@@ -83,3 +83,42 @@ def human_feedback_experiment(
         "train_y": train_y,
         "true_y": true_y,
     }
+
+
+# TODO: add types when converged.
+def ai_then_human_optimization_experiment(
+    ai,
+    human,
+    problem,
+    seed: int,
+    budget: int,
+):
+    """Main loop for AI suggestion then Human pick joint optimization
+
+    Pretty straightforward interactive experiment setup:
+        1. Ask action from `ai`
+        2. Ask action from `human` _given AI action_
+        3. Apply both actions to `problem`
+
+    The actual implementation depends heavily on how `ai`, `human`, and `problem` are implemented!
+    """
+
+    torch.manual_seed(seed)
+    history = []
+    stats = []
+
+    for _ in range(budget):
+        print(".", end="", flush=True)
+
+        ai_action, ai_stats = ai(history)
+        human_action, human_stats = human(history, ai_action)
+        outcome, outcome_stats = problem(ai_action, human_action)
+
+        stats.append({"ai": ai_stats, "human": human_stats, "outcome": outcome_stats})
+        history.append(
+            {"ai_action": ai_action, "human_action": human_action, "outcome": outcome}
+        )
+
+    print("")
+
+    return {"history": history, "stats": stats}

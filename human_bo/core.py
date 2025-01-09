@@ -34,14 +34,14 @@ def human_feedback_experiment(
     dim = bounds.shape[1]
     optimal_x = CONFIG["problem"]["parser-arguments"]["choices"][problem]["optimal_x"]
 
-    observation_function = factories.pick_user_model(
+    user = factories.pick_user_model(
         user_model, optimal_x[torch.randint(0, len(optimal_x), size=(1,))], problem_function
     )
 
     # Initial training.
     train_x = bounds[0] + (bounds[1] - bounds[0]) * torch.rand(n_init, dim)
     true_y = problem_function(train_x).view(-1, 1)
-    train_y = observation_function(train_x, true_y)
+    train_y = user(train_x, true_y)
     train_y = train_y + problem_noise * torch.randn(size=train_y.shape)
 
     # Main loop
@@ -70,7 +70,7 @@ def human_feedback_experiment(
 
         new_true_y = problem_function(candidates)
         # TODO: add noise?
-        new_train_y = observation_function(candidates, new_true_y)
+        new_train_y = user(candidates, new_true_y)
 
         train_x = torch.cat((train_x, candidates))
         train_y = torch.cat((train_y, new_train_y.view(-1, 1)))

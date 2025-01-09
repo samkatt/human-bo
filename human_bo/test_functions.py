@@ -15,7 +15,7 @@ class Zhou(SyntheticTestFunction):
     def __init__(
         self,
         noise_std: Optional[float] = None,
-        negate: bool = True,
+        negate: bool = False,
         bounds: Optional[List[Tuple[float, float]]] = None,
     ) -> None:
         r"""

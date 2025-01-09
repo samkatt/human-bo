@@ -23,7 +23,7 @@ def pick_test_function(func: str) -> SyntheticTestFunction:
 
     test_function_mapping: dict[str, SyntheticTestFunction] = {
         "Forrester": Forrester(negate=True),
-        "Zhou": Zhou(negate=True),
+        "Zhou": Zhou(negate=False),
         "Hartmann": Hartmann(negate=True),
         "Branin": Branin(negate=True),
         "Rosenbrock": Rosenbrock(dim=2, negate=True, bounds=[(-5.0, 5.0), (-5.0, 5.0)]),

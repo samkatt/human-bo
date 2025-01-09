@@ -24,8 +24,8 @@ def create_test_both_queries_problem(problem: str, problem_noise: float):
         y_ai = f(x_ai)
         y_human = f(x_human)
 
-        observation_ai = y_ai + problem_noise * torch.randn(size=y_ai.shape)
-        observation_human = y_human + problem_noise * torch.randn(size=y_human.shape)
+        observation_ai = y_ai + torch.normal(0, problem_noise, size=y_ai.shape)
+        observation_human = y_human + torch.normal(0, problem_noise, size=y_human.shape)
 
         return (observation_ai, observation_human), {
             "true_1": y_ai,

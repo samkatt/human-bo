@@ -42,7 +42,7 @@ def human_feedback_experiment(
     train_x = bounds[0] + (bounds[1] - bounds[0]) * torch.rand(n_init, dim)
     true_y = problem_function(train_x).view(-1, 1)
     train_y = user(train_x, true_y)
-    train_y = train_y + problem_noise * torch.randn(size=train_y.shape)
+    train_y = train_y + torch.normal(0, problem_noise, size=train_y.shape)
 
     # Main loop
     for _ in range(budget):
@@ -68,8 +68,7 @@ def human_feedback_experiment(
             raw_samples=512,
         )
 
-        new_true_y = problem_function(candidates)
-        # TODO: add noise?
+        new_true_y = problem_function(candidates) + torch.normal(0, problem_noise, size=[1])
         new_train_y = user(candidates, new_true_y)
 
         train_x = torch.cat((train_x, candidates))

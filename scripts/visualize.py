@@ -42,7 +42,7 @@ def compare_regrets_over_time(files: list[str]) -> None:
         new_conf = new_results["conf"]
 
         n_init, budget = new_conf["n_init"], new_conf["budget"]
-        optimal_value = pick_test_function(new_conf["function"]).optimal_value
+        optimal_value = pick_test_function(new_conf["problem"]).optimal_value
         y = new_results["true_y"]
 
         regrets = torch.tensor(
@@ -144,7 +144,7 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
     # Pre-compute some constants
     candidate_test_functions = [
         f
-        for f, c in CONFIG["function"]["parser-arguments"]["choices"].items()
+        for f, c in CONFIG["problem"]["parser-arguments"]["choices"].items()
         if c["dims"] == 1
     ]
 
@@ -152,14 +152,14 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
     new_results = torch.load(file, weights_only=True)
     conf = new_results["conf"]
 
-    if conf["function"] not in candidate_test_functions:
+    if conf["problem"] not in candidate_test_functions:
         raise ValueError(
             f"{file} is not an 1-dimensional experiment (in {candidate_test_functions}) and thus is excluded"
         )
 
     # Load configurations and results.
     budget, n_init = conf["budget"], conf["n_init"]
-    problem = pick_test_function(conf["function"])
+    problem = pick_test_function(conf["problem"])
 
     x_min, x_max = problem._bounds[0]
     x_linspace = torch.linspace(x_min, x_max, 101).reshape(-1, 1)
@@ -167,7 +167,7 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
     queries, observations = new_results["train_x"], new_results["train_y"]
 
     # Get "global" (across all time steps) values.
-    optimal_xs = CONFIG["function"]["parser-arguments"]["choices"][conf["function"]][
+    optimal_xs = CONFIG["problem"]["parser-arguments"]["choices"][conf["problem"]][
         "optimal_x"
     ]
     user_models = [

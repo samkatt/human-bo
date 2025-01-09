@@ -40,10 +40,9 @@ CONFIG = {
         "tags": {"experiment-parameter"},
         "parser-arguments": {"required": True},
     },
-    # TODO: rename?
-    "function": {
+    "problem": {
         "type": str,
-        "shorthand": "f",
+        "shorthand": "p",
         "help": "Test function to find max of",
         "tags": {"experiment-parameter"},
         "parser-arguments": {
@@ -69,7 +68,7 @@ CONFIG = {
             },
         },
     },
-    "function_noise": {
+    "problem_noise": {
         "type": float,
         "shorthand": "e",
         "help": "The Gaussian noise (variation) with which function `f` is observed",

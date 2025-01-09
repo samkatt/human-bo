@@ -12,20 +12,20 @@ import torch
 from human_bo import factories
 
 
-def create_test_both_queries_problem(function: str, function_noise: float):
+def create_test_both_queries_problem(problem: str, problem_noise: float):
     """Creates a "problem" (for BO) for human suggests second problem.
 
     We expect this problem to take two actions (queries),
     and return two observations (y + noise) and some diagnostics.
     """
-    f = factories.pick_test_function(function)
+    f = factories.pick_test_function(problem)
 
-    def problem(x_ai, x_human):
+    def problem_step(x_ai, x_human):
         y_ai = f(x_ai)
         y_human = f(x_human)
 
-        observation_ai = y_ai + function_noise * torch.randn(size=y_ai.shape)
-        observation_human = y_human + function_noise * torch.randn(size=y_human.shape)
+        observation_ai = y_ai + problem_noise * torch.randn(size=y_ai.shape)
+        observation_human = y_human + problem_noise * torch.randn(size=y_human.shape)
 
         return (observation_ai, observation_human), {
             "true_1": y_ai,
@@ -34,4 +34,4 @@ def create_test_both_queries_problem(function: str, function_noise: float):
             "observed_human": observation_human,
         }
 
-    return problem
+    return problem_step

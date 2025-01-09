@@ -19,7 +19,7 @@ if __name__ == "__main__":
             **values["parser-arguments"],
         )
 
-    parser.add_argument("-p", "--save_path", help="Name of saving directory.", type=str)
+    parser.add_argument("-f", "--save_path", help="Name of saving directory.", type=str)
     args = parser.parse_args()
     exp_conf = conf.from_ns(args)
 

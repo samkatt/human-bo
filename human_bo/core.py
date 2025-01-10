@@ -10,7 +10,7 @@ from botorch.models.transforms.outcome import Standardize
 from botorch.optim import optimize_acqf
 from gpytorch.mlls import ExactMarginalLogLikelihood
 
-from human_bo import factories
+from human_bo import factories, test_functions
 from human_bo.conf import CONFIG
 
 
@@ -35,40 +35,28 @@ def human_feedback_experiment(
     optimal_x = CONFIG["problem"]["parser-arguments"]["choices"][problem]["optimal_x"]
 
     user = factories.pick_user_model(
-        user_model, optimal_x[torch.randint(0, len(optimal_x), size=(1,))], problem_function
+        user_model,
+        optimal_x[torch.randint(0, len(optimal_x), size=(1,))],
+        problem_function,
     )
 
-    # Initial training.
-    train_x = bounds[0] + (bounds[1] - bounds[0]) * torch.rand(n_init, dim)
-    true_y = problem_function(train_x).view(-1, 1)
-    train_y = user(train_x, true_y)
-    train_y = train_y + torch.normal(0, problem_noise, size=train_y.shape)
+    ai = PlainBO(kernel, acqf, problem_function._bounds)
+
+    # TODO: ignoring `user`.
+    print("WARNING: initial samples not generated with user model.")
+    train_x, train_y, true_y = test_functions.sample_initial_points(
+        problem_function, problem_function._bounds, n_init, problem_noise
+    )
 
     # Main loop
     for _ in range(budget):
         print(".", end="", flush=True)
 
-        gpr = SingleTaskGP(
-            train_x,
-            train_y,
-            covar_module=factories.pick_kernel(kernel, dim),
-            input_transform=Normalize(d=dim),
-            outcome_transform=Standardize(m=1),
-        )
-        mll = ExactMarginalLogLikelihood(gpr.likelihood, gpr)
-        fit_gpytorch_mll(mll)
+        candidates = ai.pick_queries(train_x, train_y)
 
-        candidates, _ = optimize_acqf(
-            acq_function=factories.pick_acqf(
-                acqf, Standardize(m=1)(train_y)[0], gpr, bounds
-            ),
-            bounds=bounds,
-            q=1,  # batch size, i.e. we only query one point
-            num_restarts=10,
-            raw_samples=512,
+        new_true_y = problem_function(candidates) + torch.normal(
+            0, problem_noise, size=[1]
         )
-
-        new_true_y = problem_function(candidates) + torch.normal(0, problem_noise, size=[1])
         new_train_y = user(candidates, new_true_y)
 
         train_x = torch.cat((train_x, candidates))
@@ -119,5 +107,55 @@ def ai_then_human_optimization_experiment(
         )
 
     print("")
-
     return {"history": history, "stats": stats}
+
+
+def random_query(bounds: list[tuple[float, float]]) -> torch.Tensor:
+    """Create a random tensor with values within `bounds`"""
+    random_0_1 = torch.rand(size=[len(bounds)])
+    return torch.tensor([(x * (u - l)) + l for x, [l, u] in zip(random_0_1, bounds)])
+
+
+class PlainBO:
+    def __init__(
+        self,
+        kernel: str,
+        acqf: str,
+        bounds: list[tuple[float, float]],
+        num_restarts: int = 10,
+        raw_samples: int = 512,
+    ):
+        """Creates a typical BO agent."""
+        self.kernel = kernel
+        self.acqf = acqf
+
+        self.num_restarts = num_restarts
+        self.raw_samples = raw_samples
+
+        self.bounds = torch.tensor(bounds).T
+        self.dim = self.bounds.shape[1]
+
+    def pick_queries(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Performs BO given input `x` and `y` data points."""
+
+        gpr = SingleTaskGP(
+            x,
+            y,
+            covar_module=factories.pick_kernel(self.kernel, self.dim),
+            input_transform=Normalize(d=self.dim),
+            outcome_transform=Standardize(m=1),
+        )
+        mll = ExactMarginalLogLikelihood(gpr.likelihood, gpr)
+        fit_gpytorch_mll(mll)
+
+        candidates, _ = optimize_acqf(
+            acq_function=factories.pick_acqf(
+                self.acqf, Standardize(m=1)(y)[0], gpr, self.bounds
+            ),
+            bounds=self.bounds,
+            q=1,  # batch size, i.e. we only query one point
+            num_restarts=10,
+            raw_samples=512,
+        )
+
+        return candidates

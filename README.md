@@ -70,14 +70,6 @@ It will also try to ensure that configurations are equal (e.g. budget is the sam
 
 ### To do
 
-There are `TODO` scattered in source code, which can always be fixed.
-I do not believe any of them are (currently) bugs, but they raise warnings from linters.
-
-- [?] Update python version.
-- [ ] Figure out function typing hints and apply.
-
-#### Move towards human-AI collaboration:
-
-- [x] Add the expected interaction as function in `core.py`.
-- [ ] Implement mock implementations of necessary components.
+- [ ] Figure out linting.
+    - [?] Figure out how to do separate development and running requirements.
 - [ ] Consider how to report results (move to B&W?).

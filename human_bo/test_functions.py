@@ -1,6 +1,6 @@
 """Test functions that are not implemented in BoTorch"""
 
-from typing import List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 import torch
 from botorch.test_functions.synthetic import SyntheticTestFunction
@@ -31,7 +31,7 @@ class Zhou(SyntheticTestFunction):
 
     def evaluate_true(self, X: Tensor) -> Tensor:
         def phi_zou(X: Tensor) -> Tensor:
-            return (2 * torch.pi) ** (-0.5) * torch.exp(-0.5 * X**2)
+            return (2 * torch.pi) ** (-0.5) * torch.exp(-0.5 * X ** 2)
 
         part1 = 10 * (X - 1 / 3)
         part2 = 10 * (X - 2 / 3)
@@ -68,3 +68,30 @@ class Forrester(SyntheticTestFunction):
 
     def evaluate_true(self, X: Tensor) -> Tensor:
         return (6 * X - 2) ** 2 * sin(12 * X - 4)
+
+
+def sample_initial_points(
+    f: Callable[[torch.Tensor], torch.Tensor],
+    input_bounds: list[tuple[float, float]],
+    n_init: int,
+    problem_noise: float,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Generates `n_init` random `x -> y` values.
+
+    Will return them as a `(x, train_y, true_y)` tuple.
+    In particular:
+        - `x` will be `n_init` values uniformly sampled within the `bounds`.
+        - `y_train[i]` will be the observed value of `x[i]` (`y_true[i]` plus Gaussian noise with deviation `problem_noise`).
+        - `y_true` is the true value of `f(x[i])`.
+    """
+    assert isinstance(n_init, int) and n_init > 0
+    assert isinstance(problem_noise, float) and problem_noise >= 0
+
+    bounds = torch.tensor(input_bounds).T
+    dim = bounds.shape[1]
+
+    train_x = bounds[0] + (bounds[1] - bounds[0]) * torch.rand(n_init, dim)
+    true_y = f(train_x).view(-1, 1)
+    train_y = true_y + torch.normal(0, problem_noise, size=true_y.shape)
+
+    return train_x, train_y, true_y

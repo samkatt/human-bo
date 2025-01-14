@@ -92,7 +92,10 @@ flake8 human_bo tests
 - [ ] Change configurations to accept configuration file.
 - [ ] Change configurations to accept overwrites.
 - [?] Consider making a single experiment dependent on step and report and stuff?
+- [ ] Remove `user_model` from general config
 
 #### Misc
 
 - [ ] Update README script.
+    - [ ] Fix script names.
+    - [ ] Talk about wandb.

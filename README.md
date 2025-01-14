@@ -86,12 +86,12 @@ flake8 human_bo tests
 
 ### To do
 
-- [ ] Figure out linting.
-    - [?] Figure out how to do separate development and running requirements.
-- [ ] Consider how to report results (move to B&W?).
 - [ ] Add visualisation to human-then-AI experiment.
 - [ ] Figure out first experiment: random vs human BO.
 - [ ] Think of regret: observed y??
+- [ ] Change configurations to accept configuration file.
+- [ ] Change configurations to accept overwrites.
+- [?] Consider making a single experiment dependent on step and report and stuff?
 
 #### Misc
 

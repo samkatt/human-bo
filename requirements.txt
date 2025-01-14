@@ -2,3 +2,4 @@ matplotlib
 torch
 botorch
 gpytorch
+wandb

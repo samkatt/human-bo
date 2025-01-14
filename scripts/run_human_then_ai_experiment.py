@@ -2,12 +2,12 @@
 
 import argparse
 import os
+import sys
 from typing import Any
 
 import torch
 
-import human_bo.conf as conf
-from human_bo import core
+from human_bo import conf, core, reporting
 from human_bo.factories import pick_test_function
 from human_bo.joint_optimization.human_suggests_second import (
     PlainJointAI,
@@ -29,6 +29,8 @@ if __name__ == "__main__":
         )
 
     parser.add_argument("-f", "--save_path", help="Name of saving directory.", type=str)
+    parser.add_argument("--wandb", help="Wandb configuration file", type=str)
+
     args = parser.parse_args()
     exp_conf = conf.from_ns(args)
 
@@ -47,10 +49,10 @@ if __name__ == "__main__":
 
     if os.path.isfile(path):
         print(f"File {path} already exists, aborting run!")
-        exit()
+        sys.exit()
     if not os.path.isdir(args.save_path):
         print(f"Save path {args.save_path} is not an existing directory")
-        exit()
+        sys.exit()
 
     # Create problem.
     f = pick_test_function(exp_conf["problem"])
@@ -69,18 +71,22 @@ if __name__ == "__main__":
         f, f._bounds, exp_conf["n_init"], exp_conf["problem_noise"]
     )
     human = PlainJointAI(bo_human.pick_queries, train_x_human, train_y_human)
-    # human = lambda history, ai_action: (
-    #     core.random_query(f._bounds).unsqueeze(0),
-    #     {"descr": "Human uses random query and has no stats."},
-    # )
+
+    # Create result reporting
+    report_step = (
+        reporting.initiate_and_create_wandb_logger(args.wandb, exp_conf)
+        if args.wandb
+        else reporting.print_dot
+    )
 
     # Run actual experiment.
-    print(f"Running experiment for {path}", end="", flush=True)
+    print(f"Running experiment for {path}")
 
     res: dict[str, Any] = core.ai_then_human_optimization_experiment(
         ai.pick_queries,
         lambda hist, ai_action: human.pick_queries(hist),
         problem,
+        report_step,
         exp_conf["seed"],
         exp_conf["budget"],
     )

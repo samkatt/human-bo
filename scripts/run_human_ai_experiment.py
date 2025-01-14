@@ -6,7 +6,7 @@ import sys
 
 import torch
 
-from human_bo import conf, core
+from human_bo import conf, core, reporting
 
 if __name__ == "__main__":
     torch.set_default_dtype(torch.double)
@@ -22,6 +22,7 @@ if __name__ == "__main__":
         )
 
     parser.add_argument("-f", "--save_path", help="Name of saving directory.", type=str)
+    parser.add_argument("--wandb", help="Wandb configuration file", type=str)
     args = parser.parse_args()
     exp_conf = conf.from_ns(args)
 
@@ -45,8 +46,16 @@ if __name__ == "__main__":
         print(f"Save path {args.save_path} is not an existing directory")
         sys.exit()
 
-    print(f"Running experiment for {path}", end="", flush=True)
-    res = core.human_feedback_experiment(**exp_conf)
+    # Create result reporting
+    report_step = (
+        reporting.initiate_and_create_wandb_logger(args.wandb, exp_conf)
+        if args.wandb
+        else reporting.print_dot
+    )
+
+    print(f"Running experiment for {path}")
+    res = core.human_feedback_experiment(**exp_conf, report_step=report_step)
+    res["conf"] = exp_conf
     res["conf"] = exp_conf
 
     torch.save(res, path)

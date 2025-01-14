@@ -1,0 +1,4 @@
+project: test-wandb # the project name in wandb
+entity: skatt # user/team name on wandb
+group: example-group # group name in wandb (extra organizational power)
+mode: offline # set to "online" if you want to report directly

@@ -10,7 +10,7 @@ from botorch.models.transforms.outcome import Standardize
 from botorch.optim import optimize_acqf
 from gpytorch.mlls import ExactMarginalLogLikelihood
 
-from human_bo import factories, test_functions
+from human_bo import factories, reporting, test_functions
 from human_bo.conf import CONFIG
 
 
@@ -23,6 +23,7 @@ def human_feedback_experiment(
     seed: int,
     budget: int,
     problem_noise: float,
+    report_step: reporting.StepReport,
 ) -> dict[str, Any]:
     """Main loop that handles all the work."""
 
@@ -47,9 +48,7 @@ def human_feedback_experiment(
     )
 
     # Main loop
-    for _ in range(budget):
-        print(".", end="", flush=True)
-
+    for i in range(budget):
         candidates = ai.pick_queries(train_x, train_y)
 
         new_true_y = problem_function(candidates) + torch.normal(
@@ -61,7 +60,7 @@ def human_feedback_experiment(
         train_y = torch.cat((train_y, new_train_y.view(-1, 1)))
         true_y = torch.cat((true_y, new_true_y.view(-1, 1)))
 
-    print("")
+        report_step({"true_y": new_true_y, "max_y": true_y.max()}, i)
 
     return {
         "train_x": train_x,
@@ -75,6 +74,7 @@ def ai_then_human_optimization_experiment(
     ai,
     human,
     problem,
+    report_step: reporting.StepReport,
     seed: int,
     budget: int,
 ) -> dict[str, list]:
@@ -92,19 +92,21 @@ def ai_then_human_optimization_experiment(
     history: list[dict[str, Any]] = []
     stats = []
 
-    for _ in range(budget):
-        print(".", end="", flush=True)
+    for step in range(budget):
 
         ai_action, ai_stats = ai(history)
         human_action, human_stats = human(history, ai_action)
         outcome, outcome_stats = problem(ai_action, human_action)
 
-        stats.append({"ai": ai_stats, "human": human_stats, "outcome": outcome_stats})
+        step_data = {"ai": ai_stats, "human": human_stats, "outcome": outcome_stats}
+
+        stats.append(step_data)
         history.append(
             {"ai_action": ai_action, "human_action": human_action, "outcome": outcome}
         )
 
-    print("")
+        report_step(step_data, step)
+
     return {"history": history, "stats": stats}
 
 

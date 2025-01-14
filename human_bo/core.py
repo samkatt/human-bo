@@ -30,8 +30,6 @@ def human_feedback_experiment(
 
     # Construct actual pieces from settings.
     problem_function = factories.pick_test_function(problem)
-    bounds = torch.tensor(problem_function._bounds).T
-    dim = bounds.shape[1]
     optimal_x = CONFIG["problem"]["parser-arguments"]["choices"][problem]["optimal_x"]
 
     user = factories.pick_user_model(
@@ -79,7 +77,7 @@ def ai_then_human_optimization_experiment(
     problem,
     seed: int,
     budget: int,
-):
+) -> dict[str, list]:
     """Main loop for AI suggestion then Human pick joint optimization
 
     Pretty straightforward interactive experiment setup:
@@ -91,7 +89,7 @@ def ai_then_human_optimization_experiment(
     """
 
     torch.manual_seed(seed)
-    history = []
+    history: list[dict[str, Any]] = []
     stats = []
 
     for _ in range(budget):

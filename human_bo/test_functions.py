@@ -31,7 +31,7 @@ class Zhou(SyntheticTestFunction):
 
     def evaluate_true(self, X: Tensor) -> Tensor:
         def phi_zou(X: Tensor) -> Tensor:
-            return (2 * torch.pi) ** (-0.5) * torch.exp(-0.5 * X ** 2)
+            return (2 * torch.pi) ** (-0.5) * torch.exp(-0.5 * X**2)
 
         part1 = 10 * (X - 1 / 3)
         part2 = 10 * (X - 2 / 3)

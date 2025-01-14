@@ -102,7 +102,7 @@ def pick_user_model(
     :optimal_x: optimal x values
     :problem: The underlying function to optimize for
     """
-    user_model_mapping = {
+    user_model_mapping: dict[str, user_models.UserModel] = {
         "oracle": user_models.oracle,
         "gauss": user_models.GaussianUserModel(
             optimal_x,

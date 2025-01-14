@@ -4,7 +4,7 @@ import math
 from argparse import Namespace
 from typing import Any
 
-CONFIG = {
+CONFIG: dict[str, dict[str, Any]] = {
     "seed": {
         "type": int,
         "shorthand": "s",

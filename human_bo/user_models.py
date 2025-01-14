@@ -9,7 +9,7 @@ interpretation.
 from typing import Protocol
 
 import torch
-from torch.distributions import multivariate_normal, normal
+from torch.distributions import Distribution, multivariate_normal, normal
 
 
 class UserModel(Protocol):
@@ -50,7 +50,9 @@ class GaussianUserModel(UserModel):
         self.y_multiplier = float(dim)
 
         if dim == 1:
-            self.gauss = normal.Normal(torch.tensor(optimal_x), scale=sigma[0])
+            self.gauss: Distribution = normal.Normal(
+                torch.tensor(optimal_x), scale=sigma[0]
+            )
         else:
             self.gauss = multivariate_normal.MultivariateNormal(
                 torch.tensor(optimal_x), torch.diag(torch.tensor(sigma))

@@ -1,0 +1,6 @@
+pylint:
+  disable:
+    - too-many-arguments
+    - too-many-locals
+    - too-many-positional-arguments
+    - protected-access

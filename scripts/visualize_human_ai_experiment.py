@@ -4,6 +4,7 @@
 
 import argparse
 import math
+from typing import Any
 import warnings
 
 import matplotlib.pyplot as plt
@@ -12,7 +13,6 @@ import torch
 from botorch import settings
 from botorch.fit import fit_gpytorch_mll
 from botorch.models import SingleTaskGP
-from botorch.models.transforms.input import Normalize
 from gpytorch.mlls import ExactMarginalLogLikelihood
 from matplotlib.widgets import Slider
 
@@ -37,7 +37,8 @@ def compare_regrets_over_time(files: list[str]) -> None:
     """
     experiment_config = torch.load(files[0], weights_only=True)["conf"]
 
-    results = {}
+    # TODO: what does this result variable do?
+    results: dict[str, Any] = {}
     for file in files:
         # Load the file and initiated configurations and results.
         new_results = torch.load(file, weights_only=True)
@@ -131,7 +132,7 @@ def compare_regrets_over_time(files: list[str]) -> None:
     plt.xlabel("Budget (Iterations)")
     plt.ylabel("Simple regret")
     fig.legend(shadow=True)
-    fig.set_tight_layout({"pad": 0})
+    fig.tight_layout(pad=0)
 
     plt.show()
 
@@ -216,9 +217,11 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
     fig = plt.figure(figsize=(10, 8))
     ax = fig.gca()
 
-    def draw_results(b: int):
+    def draw_results(slider_input: float) -> int:
         """Actually draws the results in our figure"""
         ax.clear()
+
+        b = int(slider_input)
 
         # Grab results for time step `b`
         r = results[b]
@@ -279,8 +282,10 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
 
         fig.canvas.draw_idle()
 
+        return 0
+
     fig.subplots_adjust(bottom=0.2)
-    ax_budget = fig.add_axes([0.2, 0.05, 0.6, 0.03])
+    ax_budget = fig.add_axes((0.2, 0.05, 0.6, 0.03))
 
     slider_budget = Slider(
         ax_budget,
@@ -288,7 +293,7 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
         0,
         budget,
         valinit=budget,
-        valstep=[b for b in range(budget + 1)],
+        valstep=list(range(budget + 1)),
     )
 
     slider_budget.on_changed(draw_results)

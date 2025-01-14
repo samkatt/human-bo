@@ -2,11 +2,11 @@
 
 import argparse
 import os
+import sys
 
 import torch
 
-import human_bo.conf as conf
-from human_bo import core
+from human_bo import conf, core
 
 if __name__ == "__main__":
     torch.set_default_dtype(torch.double)
@@ -40,10 +40,10 @@ if __name__ == "__main__":
 
     if os.path.isfile(path):
         print(f"File {path} already exists, aborting run!")
-        exit()
+        sys.exit()
     if not os.path.isdir(args.save_path):
         print(f"Save path {args.save_path} is not an existing directory")
-        exit()
+        sys.exit()
 
     print(f"Running experiment for {path}", end="", flush=True)
     res = core.human_feedback_experiment(**exp_conf)

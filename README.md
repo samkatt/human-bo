@@ -20,10 +20,11 @@ for i in range(budget):
 
 ## Installation
 
-Install the required dependencies:
+Install the package for typical usage:
 
 ```sh
 python -m pip install -r requirements.txt
+python -m pip install .
 ```
 
 ## Running
@@ -68,8 +69,30 @@ It will also try to ensure that configurations are equal (e.g. budget is the sam
 
 ## Development
 
+Install required packages:
+
+```sh
+python -m pip install requirements_dev.txt
+```
+
+Try to keep the formatting consistent with `black .`
+
+Basic linting includes:
+
+```sh
+mypy .
+flake8 human_bo tests
+```
+
 ### To do
 
 - [ ] Figure out linting.
     - [?] Figure out how to do separate development and running requirements.
 - [ ] Consider how to report results (move to B&W?).
+- [ ] Add visualisation to human-then-AI experiment.
+- [ ] Figure out first experiment: random vs human BO.
+- [ ] Think of regret: observed y??
+
+#### Misc
+
+- [ ] Update README script.

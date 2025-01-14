@@ -54,7 +54,7 @@ class PlainJointAI:
     def pick_queries(self, history: list) -> tuple[torch.Tensor, dict]:
         """Returns next query `x` given history
 
-        In practice will combine initial data points `self.init_x` and `self.init_y` 
+        In practice will combine initial data points `self.init_x` and `self.init_y`
         with those observed in `history` to do some Bayesian optimization and optimize some acquisition function.
 
         See `create_test_both_queries_problem` and `core.ai_then_human_optimization_experiment`

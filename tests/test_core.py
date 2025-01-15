@@ -1,8 +1,10 @@
 """Tests functionality of `human_bo.core`"""
 
-from human_bo import core
 import random
+
 import torch
+
+from human_bo import core
 
 
 def generate_random_bound() -> tuple[float, float]:
@@ -21,17 +23,19 @@ def test_random_query():
     for _ in range(10):
         n_dim = random.randint(1, 8)
         bounds = [generate_random_bound() for _ in range(n_dim)]
-        q = core.random_query(bounds)
+        queries = core.random_queries(bounds, n=2)
 
-        assert (
-            len(q) == n_dim
-        ), "core.random_query should produce queries of the size of bound."
-
-        for b_i, x_i in zip(bounds, q):
-            assert (
-                b_i[0] < x_i < b_i[1]
-            ), "core.random_query should produce queries within the bounds."
+        assert queries.shape == (
+            2,
+            n_dim,
+        ), "core.random_query should produce `n` queries of the size of bound."
 
         assert not torch.allclose(
-            q, core.random_query(bounds)
+            queries[0], queries[1]
         ), "core.random_query should produce different queries."
+
+        for q in queries:
+            for b_i, x_i in zip(bounds, q):
+                assert (
+                    b_i[0] < x_i < b_i[1]
+                ), "core.random_query should produce queries within the bounds."

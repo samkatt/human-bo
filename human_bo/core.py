@@ -110,10 +110,10 @@ def ai_then_human_optimization_experiment(
     return {"history": history, "stats": stats}
 
 
-def random_query(bounds: list[tuple[float, float]]) -> torch.Tensor:
-    """Create a random tensor with values within `bounds`"""
-    random_0_1 = torch.rand(size=[len(bounds)])
-    return torch.tensor([(x * (u - l)) + l for x, [l, u] in zip(random_0_1, bounds)])
+def random_queries(bounds: list[tuple[float, float]], n: int = 1) -> torch.Tensor:
+    """Create `n` random tensor with values within `bounds`"""
+    lower, upper = torch.Tensor(bounds).T
+    return torch.rand(size=[n, len(bounds)]) * (upper - lower) + lower
 
 
 class PlainBO:

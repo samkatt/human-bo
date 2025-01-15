@@ -98,3 +98,10 @@ flake8 human_bo tests
 - [ ] Update README script.
     - [ ] Fix script names.
     - [ ] Talk about wandb.
+
+#### Refactor
+
+- [ ] Make experiment for AI-then-human simpler
+    - Input should be just function `f`.
+    - Output of human and AI should be just `y` (plus "other")
+    - Input of human and AI should be all data so far, to avoid having to compute this multiple times.

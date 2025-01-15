@@ -9,14 +9,44 @@ import torch
 
 from human_bo import conf, core, reporting
 from human_bo.factories import pick_test_function
-from human_bo.joint_optimization.human_suggests_second import (
-    PlainJointAI,
-    create_test_both_queries_problem,
-)
+from human_bo.joint_optimization import human_suggests_second
 from human_bo.test_functions import sample_initial_points
+
+
+def create_user(exp_conf: dict[str, Any]):
+    """Creates a user model for human-then-AI experiment given experiment configurations."""
+    f = pick_test_function(exp_conf["problem"])
+    match exp_conf["user"]:
+        case "random":
+            return lambda hist, stats: (
+                core.random_queries(f._bounds),
+                "Random user has no stats yet.",
+            )
+        case "BO":
+            bo_human = core.PlainBO(exp_conf["kernel"], exp_conf["acqf"], f._bounds)
+            train_x_human, train_y_human, _ = sample_initial_points(
+                f, f._bounds, exp_conf["n_init"], exp_conf["problem_noise"]
+            )
+            human = human_suggests_second.PlainJointAI(bo_human.pick_queries, train_x_human, train_y_human)
+            return lambda hist, stats: (
+                human.pick_queries(hist),
+                "PlainJointAI user has not stats yet.",
+            )
+
+    raise KeyError(f"{exp_conf['user']} is not a valid user option.")
+
 
 if __name__ == "__main__":
     torch.set_default_dtype(torch.double)
+
+    # Add `user_model` as a configuration.
+    conf.CONFIG["user"] = {
+        "type": str,
+        "shorthand": "u",
+        "help": "The (real) user behavior",
+        "tags": {"experiment-parameter"},
+        "parser-arguments": {"choices": {"random", "BO"}, "default": "random"},
+    }
 
     parser = argparse.ArgumentParser(description="Command description.")
     for arg, values in conf.CONFIG.items():
@@ -56,21 +86,15 @@ if __name__ == "__main__":
 
     # Create problem.
     f = pick_test_function(exp_conf["problem"])
-    problem = create_test_both_queries_problem(f, exp_conf["problem_noise"])
+    problem = human_suggests_second.create_test_both_queries_problem(f, exp_conf["problem_noise"])
 
     # Create AI agent.
     bo = core.PlainBO(exp_conf["kernel"], exp_conf["acqf"], f._bounds)
     train_x, train_y, _ = sample_initial_points(
         f, f._bounds, exp_conf["n_init"], exp_conf["problem_noise"]
     )
-    ai = PlainJointAI(bo.pick_queries, train_x, train_y)
-
-    # Create human agent (pretend it is also BO).
-    bo_human = core.PlainBO(exp_conf["kernel"], exp_conf["acqf"], f._bounds)
-    train_x_human, train_y_human, _ = sample_initial_points(
-        f, f._bounds, exp_conf["n_init"], exp_conf["problem_noise"]
-    )
-    human = PlainJointAI(bo_human.pick_queries, train_x_human, train_y_human)
+    ai = human_suggests_second.PlainJointAI(bo.pick_queries, train_x, train_y)
+    human = create_user(exp_conf)
 
     # Create result reporting
     report_step = (
@@ -82,9 +106,9 @@ if __name__ == "__main__":
     # Run actual experiment.
     print(f"Running experiment for {path}")
 
-    res: dict[str, Any] = core.ai_then_human_optimization_experiment(
+    res: dict[str, Any] = human_suggests_second.ai_then_human_optimization_experiment(
         ai.pick_queries,
-        lambda hist, ai_action: human.pick_queries(hist),
+        human,
         problem,
         report_step,
         exp_conf["seed"],

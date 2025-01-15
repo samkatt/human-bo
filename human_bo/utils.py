@@ -1,5 +1,6 @@
 """Odd functions one may need but is otherwise not really core."""
 
+import os
 import sys
 import traceback
 import warnings
@@ -40,3 +41,13 @@ def recursively_filter_dict(d: dict, predicate):
 
         if isinstance(v, dict):
             yield from recursively_filter_dict(v, predicate)
+
+
+def exit_if_exists(path: str, negate=False):
+    """Exits with an error if `path` exists.
+
+    Set `negate` to true if you want to fail *if `path` does not exist*
+    """
+    if os.path.exists(path) is not negate:
+        msg = "does not exist" if negate else "already exists"
+        raise ValueError(f"File {path} {msg}, aborting run!")

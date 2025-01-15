@@ -1,24 +1,18 @@
 #!/usr/bin/env python
 
 import argparse
-import os
-import sys
+from typing import Any
 
 import torch
 
-from human_bo import conf, core, reporting
+from human_bo import conf, core, reporting, utils
+from human_bo.factories import pick_test_function
+from human_bo.joint_optimization import human_suggests_second
+from human_bo.test_functions import sample_initial_points
 
 if __name__ == "__main__":
     torch.set_default_dtype(torch.double)
-
-    # Add `user_model` as a configuration.
-    conf.CONFIG["user_model"] = {
-        "type": str,
-        "shorthand": "u",
-        "help": "The mechanism through which queries are given",
-        "tags": {"experiment-parameter"},
-        "parser-arguments": {"choices": {"oracle", "gauss"}},
-    }
+    human_suggests_second.update_config()
 
     parser = argparse.ArgumentParser(description="Command description.")
     for arg, values in conf.CONFIG.items():
@@ -31,7 +25,8 @@ if __name__ == "__main__":
         )
 
     parser.add_argument("-f", "--save_path", help="Name of saving directory.", type=str)
-    parser.add_argument("--wandb", help="Wandb configuration file", type=str)
+    parser.add_argument("--wandb", help="Wandb configuration file.", type=str)
+
     args = parser.parse_args()
     exp_conf = conf.from_ns(args)
 
@@ -48,12 +43,18 @@ if __name__ == "__main__":
     )
     path = args.save_path + "/" + experiment_name + ".pt"
 
-    if os.path.isfile(path):
-        print(f"File {path} already exists, aborting run!")
-        sys.exit()
-    if not os.path.isdir(args.save_path):
-        print(f"Save path {args.save_path} is not an existing directory")
-        sys.exit()
+    utils.exit_if_exists(path)
+    utils.exit_if_exists(args.save_path, negate=True)
+
+    # Create problem.
+    f = pick_test_function(exp_conf["problem"], exp_conf["problem_noise"])
+
+    # Create AI agent.
+    bo = core.PlainBO(exp_conf["kernel"], exp_conf["acqf"], f._bounds)
+    train_x, train_y = sample_initial_points(f, f._bounds, exp_conf["n_init"])
+    ai = human_suggests_second.PlainJointAI(bo.pick_queries, train_x, train_y)
+
+    human = human_suggests_second.create_user(exp_conf, f)
 
     # Create result reporting
     report_step = (
@@ -62,9 +63,17 @@ if __name__ == "__main__":
         else reporting.print_dot
     )
 
+    # Run actual experiment.
     print(f"Running experiment for {path}")
-    res = core.human_feedback_experiment(**exp_conf, report_step=report_step)
-    res["conf"] = exp_conf
+
+    res: dict[str, Any] = human_suggests_second.ai_then_human_optimization_experiment(
+        ai.pick_queries,
+        human,
+        f,
+        report_step,
+        exp_conf["seed"],
+        exp_conf["budget"],
+    )
     res["conf"] = exp_conf
 
     torch.save(res, path)

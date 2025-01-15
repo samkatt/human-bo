@@ -4,8 +4,8 @@
 
 import argparse
 import math
-from typing import Any
 import warnings
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,7 +16,7 @@ from botorch.models import SingleTaskGP
 from gpytorch.mlls import ExactMarginalLogLikelihood
 from matplotlib.widgets import Slider
 
-from human_bo import utils
+from human_bo import human_feedback_experiments, utils
 from human_bo.conf import CONFIG
 from human_bo.factories import (
     pick_acqf,
@@ -44,7 +44,7 @@ def compare_regrets_over_time(files: list[str]) -> None:
         new_conf = new_results["conf"]
 
         n_init, budget = new_conf["n_init"], new_conf["budget"]
-        optimal_value = pick_test_function(new_conf["problem"]).optimal_value
+        optimal_value = pick_test_function(new_conf["problem"], noise=0.0).optimal_value
         y = new_results["true_y"]
 
         regrets = torch.tensor(
@@ -161,7 +161,7 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
 
     # Load configurations and results.
     budget, n_init = conf["budget"], conf["n_init"]
-    problem = pick_test_function(conf["problem"])
+    problem = pick_test_function(conf["problem"], noise=0.0)
 
     x_min, x_max = problem._bounds[0]
     x_linspace = torch.linspace(x_min, x_max, 101).reshape(-1, 1)
@@ -303,13 +303,16 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
 
 if __name__ == "__main__":
     warnings.showwarning = utils.warn_with_traceback
+
+    human_feedback_experiments.update_config()
+
     parser = argparse.ArgumentParser(description="Command description.")
     parser.add_argument(
         "-t",
         "--type",
         default="regrets",
         type=str,
-        help="Type of visualization",
+        help="Type of visualization.",
         choices=["regrets", "trajectory"],
     )
     parser.add_argument(
@@ -317,12 +320,12 @@ if __name__ == "__main__":
         "--files",
         nargs="*",
         type=str,
-        help="All files that need to be processed",
+        help="All files that need to be processed.",
     )
     parser.add_argument(
         "--plot-user-model",
         type=bool,
-        help="Whether to display user model when plotting type=trajectory",
+        help="Whether to display user model when plotting type=trajectory.",
         default=True,
         action=argparse.BooleanOptionalAction,
     )

@@ -15,18 +15,21 @@ from human_bo import user_models
 from human_bo.test_functions import Forrester, Zhou
 
 
-def pick_test_function(func: str) -> SyntheticTestFunction:
+def pick_test_function(func: str, noise: float) -> SyntheticTestFunction:
     """Instantiate the given function to optimize.
 
     :func: string description of the test function to return
+    :noise: standard deviation of the noise
     """
 
     test_function_mapping: dict[str, SyntheticTestFunction] = {
-        "Forrester": Forrester(negate=True),
-        "Zhou": Zhou(negate=False),
-        "Hartmann": Hartmann(negate=True),
-        "Branin": Branin(negate=True),
-        "Rosenbrock": Rosenbrock(dim=2, negate=True, bounds=[(-5.0, 5.0), (-5.0, 5.0)]),
+        "Forrester": Forrester(negate=True, noise_std=noise),
+        "Zhou": Zhou(negate=False, noise_std=noise),
+        "Hartmann": Hartmann(negate=True, noise_std=noise),
+        "Branin": Branin(negate=True, noise_std=noise),
+        "Rosenbrock": Rosenbrock(
+            dim=2, negate=True, bounds=[(-5.0, 5.0), (-5.0, 5.0)], noise_std=noise
+        ),
     }
 
     try:
@@ -44,7 +47,7 @@ def pick_kernel(ker: str, dim: int) -> ScaleKernel:
     :dim: number of dimensions of the kernel
     """
 
-    # ScaleKernel adds the amplitude hyper-parameter
+    # ScaleKernel adds the amplitude hyper-parameter.
     kernel_mapping: dict = {
         "RBF": ScaleKernel(RBFKernel(ard_num_dims=dim)),
         "Matern": ScaleKernel(MaternKernel(ard_num_dims=dim)),

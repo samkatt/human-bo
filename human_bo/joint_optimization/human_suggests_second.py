@@ -7,37 +7,73 @@ Per usual, we consider the instance where the budget is the main cost, so we car
 As a result, whether the human suggests a ...
 """
 
+from typing import Any, Callable
+
 import torch
+from botorch.test_functions import synthetic
 
-from typing import Callable
+from human_bo import conf, core, reporting, test_functions
 
 
-def create_test_both_queries_problem(
-    f: Callable[[torch.Tensor], torch.Tensor], problem_noise: float
-):
-    """Creates a "problem" (for BO) for human suggests second problem.
+# TODO: add types when converged.
+def ai_then_human_optimization_experiment(
+    ai,
+    human,
+    f: synthetic.SyntheticTestFunction,
+    report_step: reporting.StepReport,
+    seed: int,
+    budget: int,
+) -> dict[str, list]:
+    """Main loop for AI suggestion then Human pick joint optimization
 
-    We expect this problem to take two actions (queries),
-    and return two observations (y + noise) and some diagnostics.
+    Pretty straightforward interactive experiment setup:
+        1. Ask action from `ai`
+        2. Ask action from `human` _given AI action_
+        3. Apply both actions to `problem`
 
-    The argument `f` is the `x -> y` function to be optimized.
+    The actual implementation depends heavily on how `ai`, `human`, and `problem` are implemented!
     """
 
-    def problem_step(x_ai, x_human):
-        y_ai = f(x_ai)
-        y_human = f(x_human)
+    torch.manual_seed(seed)
+    history: list[dict[str, Any]] = []
+    stats = []
 
-        observation_ai = y_ai + torch.normal(0, problem_noise, size=y_ai.shape)
-        observation_human = y_human + torch.normal(0, problem_noise, size=y_human.shape)
+    for step in range(budget):
 
-        return {"y_ai": observation_ai, "y_human": observation_human}, {
-            "true_ai": y_ai,
-            "observed_ai": observation_ai,
-            "true_human": y_human,
-            "observed_human": observation_human,
-        }
+        ai_action, ai_stats = ai(history)
+        human_action, human_stats = human(history, ai_action)
 
-    return problem_step
+        y_ai = f(ai_action)
+        y_human = f(human_action)
+
+        outcome = {"y_ai": y_ai, "y_human": y_human}
+        outcome_stats = {"y_ai": y_ai, "y_human": y_human}
+
+        step_data = {"ai": ai_stats, "human": human_stats, "outcome": outcome_stats}
+
+        stats.append(step_data)
+        history.append(
+            {"ai_action": ai_action, "human_action": human_action, "outcome": outcome}
+        )
+
+        report_step(step_data, step)
+
+    return {"history": history, "stats": stats}
+
+
+def update_config():
+    """This function updates the configurations to set up for human suggests second experiments.
+
+    This needs to be run at the start of any script on these type of experiments.
+    """
+    # Add `user_model` as a configuration.
+    conf.CONFIG["user"] = {
+        "type": str,
+        "shorthand": "u",
+        "help": "The (real) user behavior.",
+        "tags": {"experiment-parameter"},
+        "parser-arguments": {"choices": {"random", "bo"}},
+    }
 
 
 class PlainJointAI:
@@ -57,7 +93,7 @@ class PlainJointAI:
         In practice will combine initial data points `self.init_x` and `self.init_y`
         with those observed in `history` to do some Bayesian optimization and optimize some acquisition function.
 
-        See `create_test_both_queries_problem` and `core.ai_then_human_optimization_experiment`
+        See `joint_optimization.human_suggests_second.ai_then_human_optimization_experiment`
         for expected API.
         """
 
@@ -91,3 +127,22 @@ class PlainJointAI:
         )
 
         return self.bo(x, y), {"stats": "Joint AI agent has no stats implemented yet."}
+
+
+def create_user(exp_conf: dict[str, Any], f):
+    """Creates a user model for human-then-AI experiment given experiment configurations."""
+    match exp_conf["user"]:
+        case "random":
+            return lambda hist, stats: (
+                core.random_queries(f._bounds),
+                "Random user has no stats yet.",
+            )
+        case "bo":
+            bo_human = core.PlainBO(exp_conf["kernel"], exp_conf["acqf"], f._bounds)
+            train_x_human, train_y_human = test_functions.sample_initial_points(
+                f, f._bounds, exp_conf["n_init"]
+            )
+            human = PlainJointAI(bo_human.pick_queries, train_x_human, train_y_human)
+            return lambda hist, stats: human.pick_queries(hist)
+
+    raise KeyError(f"{exp_conf['user']} is not a valid user option.")

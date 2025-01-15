@@ -30,8 +30,9 @@ def human_feedback_experiment(
     torch.manual_seed(seed)
 
     # Construct actual pieces from settings.
-    problem_function = factories.pick_test_function(problem)
+    problem_function = factories.pick_test_function(problem, problem_noise)
     optimal_x = CONFIG["problem"]["parser-arguments"]["choices"][problem]["optimal_x"]
+    optimal_y = problem_function.optimal_value
 
     user = factories.pick_user_model(
         user_model,
@@ -43,71 +44,36 @@ def human_feedback_experiment(
 
     # TODO: ignoring `user`.
     print("WARNING: initial samples not generated with user model.")
-    train_x, train_y, true_y = test_functions.sample_initial_points(
-        problem_function, problem_function._bounds, n_init, problem_noise
+    x, y = test_functions.sample_initial_points(
+        problem_function, problem_function._bounds, n_init
     )
+
+    train_y = y.detach().clone()
+    true_y = y.detach().clone()
+    max_y = true_y.max()
 
     # Main loop
     for i in range(budget):
-        candidates = ai.pick_queries(train_x, train_y)
+        candidates = ai.pick_queries(x, train_y)
 
-        new_true_y = problem_function(candidates) + torch.normal(
-            0, problem_noise, size=[1]
-        )
+        new_true_y = problem_function(candidates)
         new_train_y = user(candidates, new_true_y)
 
-        train_x = torch.cat((train_x, candidates))
-        train_y = torch.cat((train_y, new_train_y.view(-1, 1)))
-        true_y = torch.cat((true_y, new_true_y.view(-1, 1)))
+        x = torch.cat((x, candidates))
+        train_y = torch.cat((train_y, new_train_y))
+        true_y = torch.cat((true_y, new_true_y))
 
-        report_step({"true_y": new_true_y, "max_y": true_y.max()}, i)
+        # Statistics for online reporting.
+        max_y = max(new_true_y.max(), max_y)
+        regret = optimal_y - max_y
+
+        report_step({"true_y": new_true_y, "max_y": max_y, "regret": regret}, i)
 
     return {
-        "train_x": train_x,
+        "train_x": x,
         "train_y": train_y,
         "true_y": true_y,
     }
-
-
-# TODO: add types when converged.
-def ai_then_human_optimization_experiment(
-    ai,
-    human,
-    problem,
-    report_step: reporting.StepReport,
-    seed: int,
-    budget: int,
-) -> dict[str, list]:
-    """Main loop for AI suggestion then Human pick joint optimization
-
-    Pretty straightforward interactive experiment setup:
-        1. Ask action from `ai`
-        2. Ask action from `human` _given AI action_
-        3. Apply both actions to `problem`
-
-    The actual implementation depends heavily on how `ai`, `human`, and `problem` are implemented!
-    """
-
-    torch.manual_seed(seed)
-    history: list[dict[str, Any]] = []
-    stats = []
-
-    for step in range(budget):
-
-        ai_action, ai_stats = ai(history)
-        human_action, human_stats = human(history, ai_action)
-        outcome, outcome_stats = problem(ai_action, human_action)
-
-        step_data = {"ai": ai_stats, "human": human_stats, "outcome": outcome_stats}
-
-        stats.append(step_data)
-        history.append(
-            {"ai_action": ai_action, "human_action": human_action, "outcome": outcome}
-        )
-
-        report_step(step_data, step)
-
-    return {"history": history, "stats": stats}
 
 
 def random_queries(bounds: list[tuple[float, float]], n: int = 1) -> torch.Tensor:

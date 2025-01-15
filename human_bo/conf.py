@@ -75,13 +75,6 @@ CONFIG: dict[str, dict[str, Any]] = {
         "tags": {"experiment-hyper-parameter"},
         "parser-arguments": {"default": 0.01},
     },
-    "user_model": {
-        "type": str,
-        "shorthand": "u",
-        "help": "The mechanism through which queries are given",
-        "tags": {"experiment-parameter"},
-        "parser-arguments": {"choices": {"oracle", "gauss"}, "default": "oracle"},
-    },
 }
 
 

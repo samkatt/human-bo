@@ -11,6 +11,15 @@ from human_bo import conf, core, reporting
 if __name__ == "__main__":
     torch.set_default_dtype(torch.double)
 
+    # Add `user_model` as a configuration.
+    conf.CONFIG["user_model"] = {
+        "type": str,
+        "shorthand": "u",
+        "help": "The mechanism through which queries are given",
+        "tags": {"experiment-parameter"},
+        "parser-arguments": {"choices": {"oracle", "gauss"}},
+    }
+
     parser = argparse.ArgumentParser(description="Command description.")
     for arg, values in conf.CONFIG.items():
         parser.add_argument(

@@ -31,14 +31,14 @@ CONFIG: dict[str, dict[str, Any]] = {
         "shorthand": "k",
         "help": "Kernel of the GP.",
         "tags": {"experiment-parameter"},
-        "parser-arguments": {"required": True},
+        "parser-arguments": {"required": True, "choices": {"RBF", "Matern", "Default"}},
     },
     "acqf": {
         "type": str,
         "shorthand": "a",
         "help": "Acquisition function used.",
         "tags": {"experiment-parameter"},
-        "parser-arguments": {"required": True},
+        "parser-arguments": {"required": True, "choices": {"UCB", "MES", "EI"}},
     },
     "problem": {
         "type": str,

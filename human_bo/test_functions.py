@@ -41,8 +41,6 @@ class Zhou(SyntheticTestFunction):
 class Forrester(SyntheticTestFunction):
     """The Forrester (1-dimensional) function (https://www.sfu.ca/~ssurjano/forretal08.html)"""
 
-    _optimal_value = 15.829731945974109  # Hand-computed `evaluate_true(1.0)`
-
     def __init__(
         self,
         noise_std: Optional[float] = None,
@@ -64,6 +62,8 @@ class Forrester(SyntheticTestFunction):
         self.dim = 1
         self._bounds = [(-0.0, 1.0) for _ in range(self.dim)]
         self._optimizers = [tuple(1 / 3 for _ in range(self.dim))]
+
+        self._optimal_value = 6.020738786441099 if negate else 15.829731945974109
         super().__init__(noise_std=noise_std, negate=negate, bounds=bounds)
 
     def evaluate_true(self, X: Tensor) -> Tensor:

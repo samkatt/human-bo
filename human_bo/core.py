@@ -64,7 +64,7 @@ def human_feedback_experiment(
         true_y = torch.cat((true_y, new_true_y))
 
         # Statistics for online reporting.
-        max_y = max(new_true_y.max(), max_y)
+        max_y = max(max_y, new_true_y.max().item())
         regret = optimal_y - max_y
 
         report_step({"true_y": new_true_y, "max_y": max_y, "regret": regret}, i)

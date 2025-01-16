@@ -87,13 +87,12 @@ flake8 human_bo tests
 ### To do
 
 - [ ] Add visualisation to human-then-AI experiment.
-    - [ ] Simplify experiment step.
-        - [ ] Keep track of x's and y's in single tensors.
-    - [ ] Report regret (to wandb).
+    - [x] Report regret (to wandb).
     - [ ] Make simple script (copy paste) for visualization.
     - [ ] Refactor to see how much we can share between the two visualisation scripts.
 - [ ] Figure out first experiment: random vs human BO.
 - [ ] Think of regret: observed y??
+- [ ] Keep track of x's and y's in single tensors.
 - [ ] Change configurations to accept configuration file.
 - [ ] Change configurations to accept overwrites.
 - [?] Consider making a single experiment dependent on step and report and stuff?

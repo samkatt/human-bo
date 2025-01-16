@@ -38,24 +38,38 @@ def ai_then_human_optimization_experiment(
     history: list[dict[str, Any]] = []
     stats = []
 
+    optimal_y = f.optimal_value
+    max_y = -torch.inf
+
     for step in range(budget):
 
-        ai_action, ai_stats = ai(history)
-        human_action, human_stats = human(history, ai_action)
+        x_ai, ai_stats = ai(history)
+        x_human, human_stats = human(history, x_ai)
 
-        y_ai = f(ai_action)
-        y_human = f(human_action)
+        y_ai = f(x_ai)
+        y_human = f(x_human)
 
-        outcome = {"y_ai": y_ai, "y_human": y_human}
-        outcome_stats = {"y_ai": y_ai, "y_human": y_human}
-
-        step_data = {"ai": ai_stats, "human": human_stats, "outcome": outcome_stats}
-
-        stats.append(step_data)
         history.append(
-            {"ai_action": ai_action, "human_action": human_action, "outcome": outcome}
+            {
+                "x_ai": x_ai,
+                "x_human": x_human,
+                "y_ai": y_ai,
+                "y_human": y_human,
+            }
         )
 
+        # Statistics for online reporting.
+        max_y = max(max_y, torch.cat((y_ai, y_human)).max().item())
+        regret = optimal_y - max_y
+
+        step_data = {
+            "ai": ai_stats,
+            "human": human_stats,
+            "regret": regret,
+            "max_y": max_y,
+        }
+
+        stats.append(step_data)
         report_step(step_data, step)
 
     return {"history": history, "stats": stats}
@@ -108,21 +122,13 @@ class PlainJointAI:
         x = torch.cat(
             (
                 self.init_x,
-                torch.cat(
-                    [x for t in history for x in [t["ai_action"], t["human_action"]]]
-                ),
+                torch.cat([x for t in history for x in [t["x_ai"], t["x_human"]]]),
             )
         )
         y = torch.cat(
             (
                 self.init_y,
-                torch.cat(
-                    [
-                        y
-                        for t in history
-                        for y in [t["outcome"]["y_ai"], t["outcome"]["y_human"]]
-                    ]
-                ),
+                torch.cat([y for t in history for y in [t["y_ai"], t["y_human"]]]),
             )
         )
 

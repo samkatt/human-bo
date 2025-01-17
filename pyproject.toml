@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "human_bo"
+version = "0.0.1"
+authors = [{name="Sammie Katt", email="sammie.katt@gmail.com"}]
+dependencies = [
+  "botorch",
+  "gpytorch",
+  "matplotlib",
+  "torch",
+  "wandb",
+]
+
+[tool.setuptools]
+script-files = [
+  "scripts/run_human_ai_experiment.py",
+  "scripts/run_human_then_ai_experiment.py",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+dev = [
+  "black",
+  "mypy",
+  "prospector",
+  "pylint",
+  "types-PyYAML",
+]
+
+[tool.mypy]
+ignore_missing_imports = true
+check_untyped_defs = true
+
+[tool.pylint.messages_control]
+disable = [
+  "too-many-arguments",
+  "too-many-locals",
+  "too-many-statements",
+  "too-many-positional-arguments",
+  "too-few-public-methods",
+  "invalid-name",
+  "line-too-long",
+  "protected-access",
+]

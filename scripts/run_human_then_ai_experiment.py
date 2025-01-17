@@ -10,7 +10,8 @@ from human_bo.factories import pick_test_function
 from human_bo.joint_optimization import human_suggests_second
 from human_bo.test_functions import sample_initial_points
 
-if __name__ == "__main__":
+
+def main():
     torch.set_default_dtype(torch.double)
     human_suggests_second.update_config()
 
@@ -77,3 +78,7 @@ if __name__ == "__main__":
     res["conf"] = exp_conf
 
     torch.save(res, path)
+
+
+if __name__ == "__main__":
+    main()

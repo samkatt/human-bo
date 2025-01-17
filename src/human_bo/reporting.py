@@ -2,8 +2,9 @@
 
 from typing import Any, Callable
 
-import wandb
 import yaml
+
+import wandb
 
 StepData = dict[str, Any]
 StepReport = Callable[[StepData, int], None]

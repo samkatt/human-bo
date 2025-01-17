@@ -4,7 +4,7 @@ set -o pipefail # return non-zero if any of the commands in a pipeline fails (no
 set -x          # print commands before executing.
 
 black .
-flake8 human_bo tests scripts
-mypy .
-prospector
 python -m pytest .
+mypy .
+pylint scripts src tests
+prospector

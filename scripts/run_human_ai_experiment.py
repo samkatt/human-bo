@@ -6,7 +6,8 @@ import torch
 
 from human_bo import conf, core, human_feedback_experiments, reporting, utils
 
-if __name__ == "__main__":
+
+def main():
     torch.set_default_dtype(torch.double)
     human_feedback_experiments.update_config()
 
@@ -54,3 +55,7 @@ if __name__ == "__main__":
     res["conf"] = exp_conf
 
     torch.save(res, path)
+
+
+if __name__ == "__main__":
+    main()

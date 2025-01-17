@@ -23,7 +23,6 @@ for i in range(budget):
 Install the package for typical usage:
 
 ```sh
-python -m pip install -r requirements.txt
 python -m pip install .
 ```
 
@@ -54,7 +53,7 @@ python scripts/visualize.py -t trajectory -f result-dir/Zhou_RBF_MES_1.pt
 Install and run `pytest`:
 
 ```sh
-python -m pip install pytest
+python -m pip install pytest  # or python -m pip install .'[test]'
 python -m pytest
 ```
 
@@ -73,10 +72,10 @@ To enable wandb, simply provide the configuration file: `python scripts/pick-a-s
 
 ## Development
 
-I recommend to install some packages to help with development:
+I recommend to install some packages to help with development (see `pyproject.toml`):
 
 ```sh
-python -m pip install requirements_dev.txt
+python -m pip install .'[dev]'
 ```
 
 Try to keep the formatting consistent with `black .`
@@ -85,8 +84,10 @@ Basic linting includes:
 
 ```sh
 mypy .
-flake8 scripts human_bo tests
+flake8 scripts src tests
 ```
+
+But I tend to just run `scripts/static_analysis.sh` and check the output.
 
 ### To do
 
@@ -100,13 +101,6 @@ flake8 scripts human_bo tests
 - [ ] Update configuration
     - [ ] Accept configuration file.
     - [ ] Accept overwrites.
-
-#### Misc
-
-- [ ] Update project
-    - [ ] Increase python version.
-    - [ ] Move to `pyproject.toml`.
-    - [?] Configure prospector.
 
 #### Refactor
 

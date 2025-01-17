@@ -42,37 +42,40 @@ def human_feedback_experiment(
 
     ai = PlainBO(kernel, acqf, problem_function._bounds)
 
-    # TODO: ignoring `user`.
     print("WARNING: initial samples not generated with user model.")
     x, y = test_functions.sample_initial_points(
         problem_function, problem_function._bounds, n_init
     )
 
-    train_y = y.detach().clone()
-    true_y = y.detach().clone()
-    max_y = true_y.max()
+    y_from_user = y_noise.detach().clone()
+    y_to_user = y_noise.detach().clone()
+    y_true = torch.empty([1])
+    max_y = -torch.inf
 
     # Main loop
     for i in range(budget):
-        candidates = ai.pick_queries(x, train_y)
+        candidates = ai.pick_queries(x, y_from_user)
 
-        new_true_y = problem_function(candidates)
-        new_train_y = user(candidates, new_true_y)
+        y_to_user_new = problem_function(candidates)
+        y_from_user_new = user(candidates, y_to_user_new)
 
         x = torch.cat((x, candidates))
-        train_y = torch.cat((train_y, new_train_y))
-        true_y = torch.cat((true_y, new_true_y))
+        y_from_user = torch.cat((y_from_user, y_from_user_new))
+        y_to_user = torch.cat((y_to_user, y_to_user_new))
 
         # Statistics for online reporting.
-        max_y = max(max_y, new_true_y.max().item())
+        y_true_new = problem_function.evaluate_true(candidates)
+        y_true = torch.cat((y_true, y_true_new))
+
+        max_y = max(max_y, y_true_new.max().item())
         regret = optimal_y - max_y
 
-        report_step({"true_y": new_true_y, "max_y": max_y, "regret": regret}, i)
+        report_step({"true_y": y_to_user_new, "max_y": max_y, "regret": regret}, i)
 
     return {
         "train_x": x,
-        "train_y": train_y,
-        "true_y": true_y,
+        "train_y": y_from_user,
+        "true_y": y_to_user,
     }
 
 

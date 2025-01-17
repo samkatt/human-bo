@@ -6,35 +6,21 @@ are trying to find the mean ("truth"), but also a noisy observation, or human
 interpretation.
 """
 
-from typing import Protocol
+from collections.abc import Callable
 
 import torch
 from torch.distributions import Distribution, multivariate_normal, normal
 
-
-class UserModel(Protocol):
-    """Describes the API of a user model.
-
-    In this case, all we need it to do is take `y` values and give their observation.
-    """
-
-    def __call__(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """Our API: return the 'observed' value at `x` where `y` was the value of real `f(x)`"""
-        ...
+type UserModel = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
 
 
 def oracle(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-    """Returns the true values `y` as an oracle
-
-    :x: ignored
-    :y: The true underlying y values of the problem to observe
-    :returns: observations of `y`
-    """
+    """Returns `y` unmodified (implementation of `UserModel`)"""
     return y
 
 
-class GaussianUserModel(UserModel):
-    """The user model that returns y from a Gaussian around the max x."""
+class GaussianUserModel:
+    """The `UserModel` that returns y from a Gaussian around the max x."""
 
     def __init__(self, optimal_x: list[float], bounds: list[tuple[float, float]]):
         """Creates the Gaussian around `optimal_x` of deviation `s`

@@ -47,35 +47,40 @@ def human_feedback_experiment(
         problem_function, problem_function._bounds, n_init
     )
 
-    y_from_user = y_noise.detach().clone()
-    y_to_user = y_noise.detach().clone()
-    y_true = torch.empty([1])
-    max_y = -torch.inf
+    y_to_user = y.detach().clone()  # the y-values observed by the user.
+    y_from_user = y.detach().clone()  # the y-values given by the user to the AI.
+
+    # Statistics to compute regret.
+    y_true = torch.Tensor()
+    y_max = -torch.inf
 
     # Main loop
     for i in range(budget):
+
+        # Generate new data.
         candidates = ai.pick_queries(x, y_from_user)
 
         y_to_user_new = problem_function(candidates)
         y_from_user_new = user(candidates, y_to_user_new)
 
+        # Add data to existing set.
         x = torch.cat((x, candidates))
-        y_from_user = torch.cat((y_from_user, y_from_user_new))
         y_to_user = torch.cat((y_to_user, y_to_user_new))
+        y_from_user = torch.cat((y_from_user, y_from_user_new))
 
-        # Statistics for online reporting.
+        # Statistics for online reporting (regret).
         y_true_new = problem_function.evaluate_true(candidates)
         y_true = torch.cat((y_true, y_true_new))
 
-        max_y = max(max_y, y_true_new.max().item())
-        regret = optimal_y - max_y
+        y_max = max(y_max, y_true_new.max().item())
+        regret = optimal_y - y_max
 
-        report_step({"true_y": y_to_user_new, "max_y": max_y, "regret": regret}, i)
+        report_step({"y_true": y_true, "y_max": y_max, "regret": regret}, i)
 
     return {
-        "train_x": x,
-        "train_y": y_from_user,
-        "true_y": y_to_user,
+        "x": x,
+        "y": y_from_user,
+        "y_true": y_to_user,
     }
 
 

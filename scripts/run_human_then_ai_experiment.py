@@ -52,8 +52,8 @@ def main():
 
     # Create AI agent.
     bo = core.PlainBO(exp_conf["kernel"], exp_conf["acqf"], f._bounds)
-    train_x, train_y = sample_initial_points(f, f._bounds, exp_conf["n_init"])
-    ai = human_suggests_second.PlainJointAI(bo.pick_queries, train_x, train_y)
+    x_init, y_init = sample_initial_points(f, f._bounds, exp_conf["n_init"])
+    ai = human_suggests_second.PlainJointAI(bo.pick_queries, x_init, y_init)
 
     human = human_suggests_second.create_user(exp_conf, f)
 

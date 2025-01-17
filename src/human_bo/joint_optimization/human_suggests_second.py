@@ -39,13 +39,15 @@ def ai_then_human_optimization_experiment(
     stats = []
 
     optimal_y = f.optimal_value
-    max_y = -torch.inf
+    y_max = -torch.inf
 
     for step in range(budget):
 
         x_ai, ai_stats = ai(history)
+        # TODO: we may want to give human all control over x (to overwrite, for example).
         x_human, human_stats = human(history, x_ai)
 
+        # TODO: merge these calls. (or just let human give all)
         y_ai = f(x_ai)
         y_human = f(x_human)
 
@@ -59,14 +61,15 @@ def ai_then_human_optimization_experiment(
         )
 
         # Statistics for online reporting.
-        max_y = max(max_y, torch.cat((y_ai, y_human)).max().item())
-        regret = optimal_y - max_y
+        # TODO: keep track of true `y` to get the true `regret`.
+        y_max = max(y_max, torch.cat((y_ai, y_human)).max().item())
+        regret = optimal_y - y_max
 
         step_data = {
             "ai": ai_stats,
             "human": human_stats,
             "regret": regret,
-            "max_y": max_y,
+            "y_max": y_max,
         }
 
         stats.append(step_data)
@@ -145,10 +148,10 @@ def create_user(exp_conf: dict[str, Any], f):
             )
         case "bo":
             bo_human = core.PlainBO(exp_conf["kernel"], exp_conf["acqf"], f._bounds)
-            train_x_human, train_y_human = test_functions.sample_initial_points(
+            x_init, y_init = test_functions.sample_initial_points(
                 f, f._bounds, exp_conf["n_init"]
             )
-            human = PlainJointAI(bo_human.pick_queries, train_x_human, train_y_human)
+            human = PlainJointAI(bo_human.pick_queries, x_init, y_init)
             return lambda hist, stats: human.pick_queries(hist)
 
     raise KeyError(f"{exp_conf['user']} is not a valid user option.")

@@ -45,7 +45,7 @@ def compare_regrets_over_time(files: list[str]) -> None:
 
         n_init, budget = new_conf["n_init"], new_conf["budget"]
         optimal_value = pick_test_function(new_conf["problem"], noise=0.0).optimal_value
-        y = new_results["true_y"]
+        y = new_results["y_true"]
 
         regrets = torch.tensor(
             [optimal_value - y[: n_init + i].max() for i in range(budget + 1)]
@@ -166,7 +166,7 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
     x_min, x_max = problem._bounds[0]
     x_linspace = torch.linspace(x_min, x_max, 101).reshape(-1, 1)
     y_truth = problem(x_linspace)
-    queries, observations = new_results["train_x"], new_results["train_y"]
+    queries, observations = new_results["x"], new_results["y"]
 
     # Get "global" (across all time steps) values.
     optimal_xs = CONFIG["problem"]["parser-arguments"]["choices"][conf["problem"]][

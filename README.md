@@ -91,20 +91,12 @@ But I tend to just run `scripts/static_analysis.sh` and check the output.
 
 ### To do
 
-- [ ] Think of regret: observed y??
-- [ ] Keep track of x's and y's in single tensors.
+- [ ] Improve human then ai interaction:
+    - [ ] Human controls all queries.
+    - [ ] Merge x and y in single output (track which one came from who!).
+    - [ ] Track regret correctly.
 - [ ] Figure out first experiment: random vs human BO.
 - [ ] Add visualisation to human-then-AI experiment.
-    - [x] Report regret (to wandb).
-    - [ ] Make simple script (copy paste) for visualization.
-    - [ ] Refactor to see how much we can share between the two visualisation scripts.
-- [ ] Update configuration
+- [?] Update configuration
     - [ ] Accept configuration file.
     - [ ] Accept overwrites.
-
-#### Refactor
-
-- [ ] Make experiment for AI-then-human simpler
-    - Input should be just function `f`.
-    - Output of human and AI should be just `y` (plus "other")
-    - Input of human and AI should be all data so far, to avoid having to compute this multiple times.

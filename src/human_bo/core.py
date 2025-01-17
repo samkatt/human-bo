@@ -10,7 +10,7 @@ from botorch.models.transforms.outcome import Standardize
 from botorch.optim import optimize_acqf
 from gpytorch.mlls import ExactMarginalLogLikelihood
 
-from human_bo import factories, reporting, test_functions
+from human_bo import factories, human_feedback_experiments, reporting, test_functions
 from human_bo.conf import CONFIG
 
 
@@ -31,12 +31,12 @@ def human_feedback_experiment(
 
     # Construct actual pieces from settings.
     problem_function = factories.pick_test_function(problem, problem_noise)
-    optimal_x = CONFIG["problem"]["parser-arguments"]["choices"][problem]["optimal_x"]
-    optimal_y = problem_function.optimal_value
+    x_optimal = CONFIG["problem"]["parser-arguments"]["choices"][problem]["optimal_x"]
+    y_optimal = problem_function.optimal_value
 
-    user = factories.pick_user_model(
+    user = human_feedback_experiments.pick_user_model(
         user_model,
-        optimal_x[torch.randint(0, len(optimal_x), size=(1,))],
+        x_optimal[torch.randint(0, len(x_optimal), size=(1,))],
         problem_function,
     )
 
@@ -51,7 +51,6 @@ def human_feedback_experiment(
     y_from_user = y.detach().clone()  # the y-values given by the user to the AI.
 
     # Statistics to compute regret.
-    y_true = torch.Tensor()
     y_max = -torch.inf
 
     # Main loop
@@ -70,27 +69,21 @@ def human_feedback_experiment(
 
         # Statistics for online reporting (regret).
         y_true_new = problem_function.evaluate_true(candidates)
-        y_true = torch.cat((y_true, y_true_new))
 
         y_max = max(y_max, y_true_new.max().item())
-        regret = optimal_y - y_max
+        regret = y_optimal - y_max
 
-        report_step({"y_true": y_true, "y_max": y_max, "regret": regret}, i)
+        report_step({"y_true": y_true_new, "y_max": y_max, "regret": regret}, i)
 
     return {
         "x": x,
         "y": y_from_user,
-        "y_true": y_to_user,
     }
 
 
-def random_queries(bounds: list[tuple[float, float]], n: int = 1) -> torch.Tensor:
-    """Create `n` random tensor with values within `bounds`"""
-    lower, upper = torch.Tensor(bounds).T
-    return torch.rand(size=[n, len(bounds)]) * (upper - lower) + lower
-
-
 class PlainBO:
+    """Bayesian optimization agent."""
+
     def __init__(
         self,
         kernel: str,

@@ -18,12 +18,7 @@ from matplotlib.widgets import Slider
 
 from human_bo import human_feedback_experiments, utils
 from human_bo.conf import CONFIG
-from human_bo.factories import (
-    pick_acqf,
-    pick_kernel,
-    pick_test_function,
-    pick_user_model,
-)
+from human_bo.factories import pick_acqf, pick_kernel, pick_test_function
 from human_bo.utils import recursively_filter_dict
 from human_bo.visualization import set_matplotlib_params
 
@@ -173,7 +168,9 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
         "optimal_x"
     ]
     user_models = [
-        pick_user_model(conf["user_model"], optimal_x, problem)(x_linspace, y_truth)
+        human_feedback_experiments.pick_user_model(
+            conf["user_model"], optimal_x, problem
+        )(x_linspace, y_truth)
         for optimal_x in optimal_xs
     ]
 

@@ -3,8 +3,7 @@
 import random
 
 import torch
-
-from human_bo import core
+import human_bo.test_functions
 
 
 def generate_random_bound() -> tuple[float, float]:
@@ -23,7 +22,7 @@ def test_random_query():
     for _ in range(10):
         n_dim = random.randint(1, 8)
         bounds = [generate_random_bound() for _ in range(n_dim)]
-        queries = core.random_queries(bounds, n=2)
+        queries = human_bo.test_functions.random_queries(bounds, n=2)
 
         assert queries.shape == (
             2,

@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+"""Main entry point: runs typical BO with (potentially) human giving the feedback."""
+
 import argparse
 
 import torch
@@ -8,6 +10,7 @@ from human_bo import conf, core, human_feedback_experiments, reporting, utils
 
 
 def main():
+    """Main entry human-feedback experiments."""
     torch.set_default_dtype(torch.double)
     human_feedback_experiments.update_config()
 

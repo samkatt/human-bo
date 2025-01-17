@@ -1,4 +1,4 @@
-"""Test functions that are not implemented in BoTorch"""
+"""Test functions that are not implemented in BoTorch."""
 
 from typing import Callable, List, Optional, Tuple
 
@@ -70,6 +70,12 @@ class Forrester(SyntheticTestFunction):
         return (6 * X - 2) ** 2 * sin(12 * X - 4)
 
 
+def random_queries(bounds: list[tuple[float, float]], n: int = 1) -> torch.Tensor:
+    """Create `n` random tensor with values within `bounds`"""
+    lower, upper = torch.Tensor(bounds).T
+    return torch.rand(size=[n, len(bounds)]) * (upper - lower) + lower
+
+
 def sample_initial_points(
     f: Callable[[torch.Tensor], torch.Tensor],
     input_bounds: list[tuple[float, float]],
@@ -81,10 +87,7 @@ def sample_initial_points(
     """
     assert isinstance(n_init, int) and n_init > 0
 
-    bounds = torch.tensor(input_bounds).T
-    dim = bounds.shape[1]
-
-    x = bounds[0] + (bounds[1] - bounds[0]) * torch.rand(n_init, dim)
+    x = random_queries(input_bounds, n_init)
     y = f(x)
 
     return x, y

@@ -12,7 +12,17 @@ from typing import Any, Callable
 import torch
 from botorch.test_functions import synthetic
 
-from human_bo import conf, core, reporting, test_functions
+from human_bo import core, reporting, test_functions
+
+CONFIG = {
+    "user": {
+        "type": str,
+        "shorthand": "u",
+        "help": "The (real) user behavior.",
+        "tags": {"experiment-parameter"},
+        "parser-arguments": {"choices": {"random", "bo", "noop"}},
+    }
+}
 
 
 # TODO: add types when converged.
@@ -88,22 +98,6 @@ def ai_then_human_optimization_experiment(
     return {"history": history, "stats": stats}
 
 
-def update_config():
-    """This function updates the configurations to set up for human suggests second experiments.
-
-    This needs to be run at the start of any script on these type of experiments.
-    """
-    # Add `user_model` as a configuration.
-    conf.CONFIG["user"] = {
-        "type": str,
-        "shorthand": "u",
-        "help": "The (real) user behavior.",
-        "tags": {"experiment-parameter"},
-        "parser-arguments": {"choices": {"random", "bo", "noop"}},
-    }
-
-
-# TODO: refactor to just use `PlainBo`
 class PlainJointAI:
     """Bayesian optimization agent in the joint optimization setting."""
 

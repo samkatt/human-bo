@@ -16,10 +16,12 @@ from human_bo.test_functions import sample_initial_points
 def main():
     """Main entry human-then-AI experiments."""
     torch.set_default_dtype(torch.double)
-    human_suggests_second.update_config()
+
+    exp_conf = conf.CONFIG
+    exp_conf.update(human_suggests_second.CONFIG)
 
     parser = argparse.ArgumentParser(description="Command description.")
-    for arg, values in conf.CONFIG.items():
+    for arg, values in exp_conf.items():
         parser.add_argument(
             "-" + values["shorthand"],
             "--" + arg,
@@ -32,18 +34,18 @@ def main():
     parser.add_argument("--wandb", help="Wandb configuration file.", type=str)
 
     args = parser.parse_args()
-    exp_conf = conf.from_ns(args)
+    exp_params = conf.from_ns(args)
 
     experiment_name = (
         "_".join(
             [
                 str(v)
-                for k, v in exp_conf.items()
-                if "experiment-parameter" in conf.CONFIG[k]["tags"]
+                for k, v in exp_params.items()
+                if "experiment-parameter" in exp_conf[k]["tags"]
             ]
         )
         + "_"
-        + str(exp_conf["seed"])
+        + str(exp_params["seed"])
     )
     path = args.save_path + "/" + experiment_name + ".pt"
 
@@ -51,21 +53,21 @@ def main():
     utils.exit_if_exists(args.save_path, negate=True)
 
     # Create problem.
-    f = pick_test_function(exp_conf["problem"], exp_conf["problem_noise"])
+    f = pick_test_function(exp_params["problem"], exp_params["problem_noise"])
 
     # Create AI agent.
-    bo = core.PlainBO(exp_conf["kernel"], exp_conf["acqf"], f._bounds)
-    x_init, y_init = sample_initial_points(f, f._bounds, exp_conf["n_init"])
+    bo = core.PlainBO(exp_params["kernel"], exp_params["acqf"], f._bounds)
+    x_init, y_init = sample_initial_points(f, f._bounds, exp_params["n_init"])
     ai_agent = human_suggests_second.PlainJointAI(bo.pick_queries, x_init, y_init)
 
     def ai(x, y, _hist):
         return ai_agent.pick_queries(x, y)
 
-    human = human_suggests_second.create_user(exp_conf, f)
+    human = human_suggests_second.create_user(exp_params, f)
 
     # Create result reporting
     report_step = (
-        reporting.initiate_and_create_wandb_logger(args.wandb, exp_conf)
+        reporting.initiate_and_create_wandb_logger(args.wandb, exp_params)
         if args.wandb
         else reporting.print_dot
     )
@@ -78,10 +80,10 @@ def main():
         human,
         f,
         report_step,
-        exp_conf["seed"],
-        exp_conf["budget"],
+        exp_params["seed"],
+        exp_params["budget"],
     )
-    res["conf"] = exp_conf
+    res["conf"] = exp_params
 
     torch.save(res, path)
 

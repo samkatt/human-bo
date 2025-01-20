@@ -16,11 +16,8 @@ from botorch.models import SingleTaskGP
 from gpytorch.mlls import ExactMarginalLogLikelihood
 from matplotlib.widgets import Slider
 
-from human_bo import human_feedback_experiments, utils
-from human_bo.conf import CONFIG
+from human_bo import conf, human_feedback_experiments, utils, visualization
 from human_bo.factories import pick_acqf, pick_kernel, pick_test_function
-from human_bo.utils import recursively_filter_dict
-from human_bo.visualization import set_matplotlib_params
 
 
 def compare_regrets_over_time(files: list[str]) -> None:
@@ -40,14 +37,14 @@ def compare_regrets_over_time(files: list[str]) -> None:
 
         n_init, budget = new_conf["n_init"], new_conf["budget"]
         optimal_value = pick_test_function(new_conf["problem"], noise=0.0).optimal_value
-        y = new_results["y_true"]
+        y = new_results["y"]
 
         regrets = torch.tensor(
             [optimal_value - y[: n_init + i].max() for i in range(budget + 1)]
         )
 
         # Make sure experiment shares the same parameters.
-        for k, c in CONFIG.items():
+        for k, c in conf.CONFIG.items():
             if "experiment-hyper-parameter" not in c["tags"]:
                 continue  # We only check for "experiment-hyper-parameter" configurations
 
@@ -57,7 +54,7 @@ def compare_regrets_over_time(files: list[str]) -> None:
 
         # Store results.
         current_results_for_experiment = results
-        for k, c in CONFIG.items():
+        for k, c in conf.CONFIG.items():
             if "experiment-parameter" not in c["tags"]:
                 continue  # We store results per "experiment-parameter" combination.
 
@@ -84,7 +81,7 @@ def compare_regrets_over_time(files: list[str]) -> None:
             current_results_for_experiment["regrets"] = regrets.unsqueeze(-1)
 
     # Go over all results and compute (and store) their mean and standard error.
-    for e in recursively_filter_dict(
+    for e in utils.recursively_filter_dict(
         results, lambda _, v: isinstance(v, dict) and "regrets" in v
     ):
         r = e["regrets"]
@@ -93,10 +90,10 @@ def compare_regrets_over_time(files: list[str]) -> None:
 
     fig = plt.figure(figsize=(8, 6))
 
-    for e in recursively_filter_dict(
+    for e in utils.recursively_filter_dict(
         results, lambda _, v: isinstance(v, dict) and "regrets" in v
     ):
-        conf = e["conf"]
+        exp_params = e["conf"]
         mean = e["mean_regret"]
         std = e["std_regret"]
 
@@ -106,8 +103,8 @@ def compare_regrets_over_time(files: list[str]) -> None:
             label=" ".join(
                 [
                     v
-                    for k, v in conf.items()
-                    if "experiment-parameter" in CONFIG[k]["tags"]
+                    for k, v in exp_params.items()
+                    if "experiment-parameter" in conf.CONFIG[k]["tags"]
                 ]
             ),
             linestyle="--",
@@ -141,22 +138,22 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
     # Pre-compute some constants
     candidate_test_functions = [
         f
-        for f, c in CONFIG["problem"]["parser-arguments"]["choices"].items()
+        for f, c in conf.CONFIG["problem"]["parser-arguments"]["choices"].items()
         if c["dims"] == 1
     ]
 
     # Load the file.
     new_results = torch.load(file, weights_only=True)
-    conf = new_results["conf"]
+    exp_params = new_results["conf"]
 
-    if conf["problem"] not in candidate_test_functions:
+    if exp_params["problem"] not in candidate_test_functions:
         raise ValueError(
             f"{file} is not an 1-dimensional experiment (in {candidate_test_functions}) and thus is excluded"
         )
 
     # Load configurations and results.
-    budget, n_init = conf["budget"], conf["n_init"]
-    problem = pick_test_function(conf["problem"], noise=0.0)
+    budget, n_init = exp_params["budget"], exp_params["n_init"]
+    problem = pick_test_function(exp_params["problem"], noise=0.0)
 
     x_min, x_max = problem._bounds[0]
     x_linspace = torch.linspace(x_min, x_max, 101).reshape(-1, 1)
@@ -164,12 +161,12 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
     queries, observations = new_results["x"], new_results["y"]
 
     # Get "global" (across all time steps) values.
-    optimal_xs = CONFIG["problem"]["parser-arguments"]["choices"][conf["problem"]][
-        "optimal_x"
-    ]
+    optimal_xs = conf.CONFIG["problem"]["parser-arguments"]["choices"][
+        exp_params["problem"]
+    ]["optimal_x"]
     user_models = [
         human_feedback_experiments.pick_user_model(
-            conf["user_model"], optimal_x, problem
+            exp_params["user_model"], optimal_x, problem
         )(x_linspace, y_truth)
         for optimal_x in optimal_xs
     ]
@@ -184,7 +181,7 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
             gpr = SingleTaskGP(
                 x,
                 y,
-                covar_module=pick_kernel(conf["kernel"], 1),
+                covar_module=pick_kernel(exp_params["kernel"], 1),
                 outcome_transform=None,
             )
 
@@ -196,7 +193,7 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
             gpr.likelihood(gpr(x_linspace)).variance.detach().numpy()
         )
 
-        acqf = pick_acqf(conf["acqf"], y, gpr, torch.tensor(problem._bounds).T)
+        acqf = pick_acqf(exp_params["acqf"], y, gpr, torch.tensor(problem._bounds).T)
         acqf_eval = acqf(x_linspace[:, None, :]).detach().numpy()
 
         results.append(
@@ -258,7 +255,7 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
             linestyle="dotted",
             color="orange",
             linewidth=3,
-            label=conf["acqf"],
+            label=exp_params["acqf"],
         )
 
         # Basic plotting style
@@ -269,10 +266,10 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
             " ".join(
                 [
                     str(v)
-                    for k, v in conf.items()
-                    if "experiment-parameter" in CONFIG[k]["tags"]
+                    for k, v in exp_params.items()
+                    if "experiment-parameter" in conf.CONFIG[k]["tags"]
                 ]
-                + [str(conf["seed"])]
+                + [str(exp_params["seed"])]
             )
         )
 
@@ -301,7 +298,7 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
 if __name__ == "__main__":
     warnings.showwarning = utils.warn_with_traceback
 
-    human_feedback_experiments.update_config()
+    conf.CONFIG.update(human_feedback_experiments.CONFIG)
 
     parser = argparse.ArgumentParser(description="Command description.")
     parser.add_argument(
@@ -331,7 +328,7 @@ if __name__ == "__main__":
 
     # Basic setup for all visualizations.
     torch.set_default_dtype(torch.double)
-    set_matplotlib_params()
+    visualization.set_matplotlib_params()
 
     if args.type == "regrets":
         compare_regrets_over_time(args.files)

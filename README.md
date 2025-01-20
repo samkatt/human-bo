@@ -91,10 +91,6 @@ But I tend to just run `scripts/static_analysis.sh` and check the output.
 
 ### To do
 
-- [ ] Improve human then ai interaction:
-    - [ ] Human controls all queries.
-    - [ ] Merge x and y in single output (track which one came from who!).
-    - [ ] Track regret correctly.
 - [ ] Figure out first experiment: random vs human BO.
 - [ ] Add visualisation to human-then-AI experiment.
 - [?] Update configuration

@@ -56,7 +56,10 @@ def main():
     # Create AI agent.
     bo = core.PlainBO(exp_conf["kernel"], exp_conf["acqf"], f._bounds)
     x_init, y_init = sample_initial_points(f, f._bounds, exp_conf["n_init"])
-    ai = human_suggests_second.PlainJointAI(bo.pick_queries, x_init, y_init)
+    ai_agent = human_suggests_second.PlainJointAI(bo.pick_queries, x_init, y_init)
+
+    def ai(x, y, _hist):
+        return ai_agent.pick_queries(x, y)
 
     human = human_suggests_second.create_user(exp_conf, f)
 
@@ -71,7 +74,7 @@ def main():
     print(f"Running experiment for {path}")
 
     res: dict[str, Any] = human_suggests_second.ai_then_human_optimization_experiment(
-        ai.pick_queries,
+        ai,
         human,
         f,
         report_step,

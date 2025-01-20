@@ -99,7 +99,7 @@ def update_config():
         "shorthand": "u",
         "help": "The (real) user behavior.",
         "tags": {"experiment-parameter"},
-        "parser-arguments": {"choices": {"random", "bo"}},
+        "parser-arguments": {"choices": {"random", "bo", "noop"}},
     }
 
 
@@ -142,6 +142,7 @@ def create_user(exp_conf: dict[str, Any], f):
                 torch.cat((ai_action, test_functions.random_queries(f._bounds))),
                 {"stats": "Random user has no stats yet."},
             )
+
         case "bo":
             bo_human = core.PlainBO(exp_conf["kernel"], exp_conf["acqf"], f._bounds)
             x_init, y_init = test_functions.sample_initial_points(
@@ -154,5 +155,11 @@ def create_user(exp_conf: dict[str, Any], f):
                 return torch.cat((ai_action, x)), stats
 
             return human_response
+
+        case "noop":
+            return lambda _x, _y, ai_action, _hist: (
+                ai_action,
+                {"stats": "Noop user has not stats."},
+            )
 
     raise KeyError(f"{exp_conf['user']} is not a valid user option.")

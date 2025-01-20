@@ -94,6 +94,8 @@ def update_config():
 
 
 class PlainJointAI:
+    """Bayesian optimization agent in the joint optimization setting."""
+
     def __init__(
         self,
         plain_ai: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
@@ -143,7 +145,7 @@ def create_user(exp_conf: dict[str, Any], f):
     match exp_conf["user"]:
         case "random":
             return lambda hist, stats: (
-                core.random_queries(f._bounds),
+                test_functions.random_queries(f._bounds),
                 "Random user has no stats yet.",
             )
         case "bo":

@@ -11,7 +11,6 @@ from botorch.models import SingleTaskGP
 from botorch.test_functions import Branin, Hartmann, Rosenbrock, SyntheticTestFunction
 from gpytorch.kernels import MaternKernel, RBFKernel, ScaleKernel
 
-from human_bo import user_models
 from human_bo.test_functions import Forrester, Zhou
 
 
@@ -94,28 +93,4 @@ def pick_acqf(
     except KeyError as error:
         raise KeyError(
             f"{acqf} is not an accepted acquisition function (not in {acqf_mapping.keys()})"
-        ) from error
-
-
-def pick_user_model(
-    u, optimal_x: list[float], problem: SyntheticTestFunction
-) -> user_models.UserModel:
-    """Instantiates the `UserModel` described by `u`
-
-    :optimal_x: optimal x values
-    :problem: The underlying function to optimize for
-    """
-    user_model_mapping: dict[str, user_models.UserModel] = {
-        "oracle": user_models.oracle,
-        "gauss": user_models.GaussianUserModel(
-            optimal_x,
-            problem._bounds,
-        ),
-    }
-
-    try:
-        return user_model_mapping[u]
-    except KeyError as error:
-        raise KeyError(
-            f"{u} is not an accepted user model (not in {user_model_mapping.keys()})"
         ) from error

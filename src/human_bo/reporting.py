@@ -10,7 +10,8 @@ StepData = dict[str, Any]
 StepReport = Callable[[StepData, int], None]
 
 
-def print_dot(step_data: StepData, step: int) -> None:
+def print_dot(_step_data: StepData, _step: int) -> None:
+    """Prints a dot to the terminal, can be used to track progress."""
     print(".", end="", flush=True)
 
 

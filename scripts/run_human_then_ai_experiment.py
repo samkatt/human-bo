@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+"""Main entry point: runs collaborative BO."""
+
 import argparse
 from typing import Any
 
@@ -12,6 +14,7 @@ from human_bo.test_functions import sample_initial_points
 
 
 def main():
+    """Main entry human-then-AI experiments."""
     torch.set_default_dtype(torch.double)
     human_suggests_second.update_config()
 

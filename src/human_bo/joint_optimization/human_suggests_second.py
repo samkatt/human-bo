@@ -35,45 +35,55 @@ def ai_then_human_optimization_experiment(
     """
 
     torch.manual_seed(seed)
+
     history: list[dict[str, Any]] = []
+    x = torch.Tensor()
+    y = torch.Tensor()
+
+    # For keeping statistics.
     stats = []
 
-    optimal_y = f.optimal_value
+    y_optimal = f.optimal_value
+
     y_max = -torch.inf
 
-    for step in range(budget):
+    # Actual interaction and experiment loop.
+    step = 0
+    while step < budget:
+        ai_action, ai_stats = ai(x, y, history)
+        x_new, human_stats = human(x, y, ai_action, history)
 
-        x_ai, ai_stats = ai(history)
-        # TODO: we may want to give human all control over x (to overwrite, for example).
-        x_human, human_stats = human(history, x_ai)
+        y_new = f(x_new)
 
-        # TODO: merge these calls. (or just let human give all)
-        y_ai = f(x_ai)
-        y_human = f(x_human)
+        x = torch.cat((x, x_new))
+        y = torch.cat((y, y_new))
 
         history.append(
             {
-                "x_ai": x_ai,
-                "x_human": x_human,
-                "y_ai": y_ai,
-                "y_human": y_human,
+                "ai_action": ai_action,
+                "x": x_new,
+                "y": y_new,
             }
         )
 
         # Statistics for online reporting.
-        # TODO: keep track of true `y` to get the true `regret`.
-        y_max = max(y_max, torch.cat((y_ai, y_human)).max().item())
-        regret = optimal_y - y_max
+        y_true_new = f.evaluate_true(x)
+
+        y_max = max(y_max, y_true_new.max().item())
+        regret = y_optimal - y_max
 
         step_data = {
             "ai": ai_stats,
             "human": human_stats,
             "regret": regret,
             "y_max": y_max,
+            "y_true": y_true_new,
         }
 
         stats.append(step_data)
         report_step(step_data, step)
+
+        step += len(y_new)
 
     return {"history": history, "stats": stats}
 
@@ -93,6 +103,7 @@ def update_config():
     }
 
 
+# TODO: refactor to just use `PlainBo`
 class PlainJointAI:
     """Bayesian optimization agent in the joint optimization setting."""
 
@@ -106,47 +117,30 @@ class PlainJointAI:
         self.init_y = init_y
         self.bo = plain_ai
 
-    def pick_queries(self, history: list) -> tuple[torch.Tensor, dict]:
-        """Returns next query `x` given history
+    def pick_queries(
+        self, x: torch.Tensor, y: torch.Tensor
+    ) -> tuple[torch.Tensor, dict]:
+        """Returns next query given data `x` and `y`.
 
         In practice will combine initial data points `self.init_x` and `self.init_y`
-        with those observed in `history` to do some Bayesian optimization and optimize some acquisition function.
-
-        See `joint_optimization.human_suggests_second.ai_then_human_optimization_experiment`
-        for expected API.
+        with `x` and `y`.
         """
 
-        # Base case has no history. Perform BO on the initial points.
-        if not history:
-            return self.bo(self.init_x, self.init_y), {
-                "stats": "Joint AI agent has no stats implemented yet."
-            }
+        all_x = torch.cat((self.init_x, x))
+        all_y = torch.cat((self.init_y, y))
 
-        # At this point, we know there is some history:
-        # Concatenate the observed x's and y's to our initial samples.
-        x = torch.cat(
-            (
-                self.init_x,
-                torch.cat([x for t in history for x in [t["x_ai"], t["x_human"]]]),
-            )
-        )
-        y = torch.cat(
-            (
-                self.init_y,
-                torch.cat([y for t in history for y in [t["y_ai"], t["y_human"]]]),
-            )
-        )
-
-        return self.bo(x, y), {"stats": "Joint AI agent has no stats implemented yet."}
+        return self.bo(all_x, all_y), {
+            "stats": "Joint AI agent has no stats implemented yet."
+        }
 
 
 def create_user(exp_conf: dict[str, Any], f):
     """Creates a user model for human-then-AI experiment given experiment configurations."""
     match exp_conf["user"]:
         case "random":
-            return lambda hist, stats: (
-                test_functions.random_queries(f._bounds),
-                "Random user has no stats yet.",
+            return lambda _x, _y, ai_action, _hist: (
+                torch.cat((ai_action, test_functions.random_queries(f._bounds))),
+                {"stats": "Random user has no stats yet."},
             )
         case "bo":
             bo_human = core.PlainBO(exp_conf["kernel"], exp_conf["acqf"], f._bounds)
@@ -154,6 +148,11 @@ def create_user(exp_conf: dict[str, Any], f):
                 f, f._bounds, exp_conf["n_init"]
             )
             human = PlainJointAI(bo_human.pick_queries, x_init, y_init)
-            return lambda hist, stats: human.pick_queries(hist)
+
+            def human_response(x, y, ai_action, _history):
+                x, stats = human.pick_queries(x, y)
+                return torch.cat((ai_action, x)), stats
+
+            return human_response
 
     raise KeyError(f"{exp_conf['user']} is not a valid user option.")

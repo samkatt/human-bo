@@ -2,6 +2,7 @@
 
 import torch
 
+import pytest
 from human_bo import test_functions
 
 
@@ -30,3 +31,9 @@ def test_sample_initial_points():
             assert (
                 b[0] < x_i < b[1]
             ), "`sample_initial_points` x should be sampled within the bounds."
+
+
+def test_forrester():
+    """Tests `test_functions.Forrester`"""
+    p = test_functions.Forrester()
+    assert p.optimal_value == pytest.approx(6.020738786441099)

@@ -26,7 +26,9 @@ def main():
             **values["parser-arguments"],
         )
 
-    parser.add_argument("-f", "--save_path", help="Name of saving directory.", type=str)
+    parser.add_argument(
+        "-f", "--save_path", help="Name of saving directory.", type=str, required=True
+    )
     parser.add_argument("--wandb", help="Wandb configuration file.", type=str)
     args = parser.parse_args()
     exp_params = conf.from_ns(args)

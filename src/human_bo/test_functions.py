@@ -76,12 +76,6 @@ def random_queries(bounds: list[tuple[float, float]], n: int = 1) -> torch.Tenso
     return torch.rand(size=[n, len(bounds)]) * (upper - lower) + lower
 
 
-def random_queries(bounds: list[tuple[float, float]], n: int = 1) -> torch.Tensor:
-    """Create `n` random tensor with values within `bounds`"""
-    lower, upper = torch.Tensor(bounds).T
-    return torch.rand(size=[n, len(bounds)]) * (upper - lower) + lower
-
-
 def sample_initial_points(
     f: Callable[[torch.Tensor], torch.Tensor],
     input_bounds: list[tuple[float, float]],

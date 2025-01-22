@@ -54,7 +54,6 @@ def ai_then_human_optimization_experiment(
     stats = []
 
     y_optimal = f.optimal_value
-
     y_max = -torch.inf
 
     # Actual interaction and experiment loop.

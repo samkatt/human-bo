@@ -20,10 +20,11 @@ def pick_test_function(func: str, noise: float) -> SyntheticTestFunction:
     :func: string description of the test function to return
     :noise: standard deviation of the noise
     """
+    # TODO: double check negations in test functions work as expected.
 
     test_function_mapping: dict[str, SyntheticTestFunction] = {
-        "Forrester": Forrester(negate=True, noise_std=noise),
-        "Zhou": Zhou(negate=False, noise_std=noise),
+        "Forrester": Forrester(noise_std=noise),
+        "Zhou": Zhou(noise_std=noise),
         "Hartmann": Hartmann(negate=True, noise_std=noise),
         "Branin": Branin(negate=True, noise_std=noise),
         "Rosenbrock": Rosenbrock(

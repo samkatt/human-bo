@@ -92,6 +92,7 @@ But I tend to just run `scripts/static_analysis.sh` and check the output.
 ### To do
 
 - [ ] Figure out first experiment: random vs human BO.
+- [ ] Fix (understanding of) negation in test functions.
 - [ ] Add visualisation to human-then-AI experiment.
 - [?] Update configuration
     - [ ] Accept configuration file.

@@ -1,5 +1,7 @@
 """Test functions that are not implemented in BoTorch."""
 
+# TODO: some test functions do magic during `evaluate_true`; maybe mimic in mine?
+
 from typing import Callable, List, Optional, Tuple
 
 import torch
@@ -15,19 +17,17 @@ class Zhou(SyntheticTestFunction):
     def __init__(
         self,
         noise_std: Optional[float] = None,
-        negate: bool = False,
         bounds: Optional[List[Tuple[float, float]]] = None,
     ) -> None:
         r"""
         Args:
             noise_std: Standard deviation of the observation noise.
-            negate: If True, negate the function.
             bounds: Custom bounds for the function specified as (lower, upper) pairs.
         """
         self.dim = 1
         self._bounds = [(-0.0, 1.0) for _ in range(self.dim)]
         self._optimizers = [tuple(1 / 3 for _ in range(self.dim))]
-        super().__init__(noise_std=noise_std, negate=negate, bounds=bounds)
+        super().__init__(noise_std=noise_std, bounds=bounds)
 
     def evaluate_true(self, X: Tensor) -> Tensor:
         def phi_zou(X: Tensor) -> Tensor:
@@ -44,7 +44,6 @@ class Forrester(SyntheticTestFunction):
     def __init__(
         self,
         noise_std: Optional[float] = None,
-        negate: bool = True,
         bounds: Optional[List[Tuple[float, float]]] = None,
     ) -> None:
         """Initiates the Forrester function
@@ -55,19 +54,26 @@ class Forrester(SyntheticTestFunction):
         The actual function is:
             `f(x) = (6x - 2)^2 * sin(12x - 4)`
 
+        I am negating this by nature, so returning `- f(x)`
+
         :noise_std: Standard deviation of the observation noise.
-        :negate: If True, negate the function.
         :bounds: Custom bounds for the function specified as (lower, upper) pairs.
         """
         self.dim = 1
         self._bounds = [(-0.0, 1.0) for _ in range(self.dim)]
         self._optimizers = [tuple(1 / 3 for _ in range(self.dim))]
 
-        self._optimal_value = -6.020738786441099 if negate else 15.829731945974109
-        super().__init__(noise_std=noise_std, negate=negate, bounds=bounds)
+        self._optimal_value = 6.020738786441099
+        super().__init__(noise_std=noise_std, bounds=bounds)
 
     def evaluate_true(self, X: Tensor) -> Tensor:
-        return (6 * X - 2) ** 2 * sin(12 * X - 4)
+        return -((6 * X - 2) ** 2) * sin(12 * X - 4)
+
+
+def random_queries(bounds: list[tuple[float, float]], n: int = 1) -> torch.Tensor:
+    """Create `n` random tensor with values within `bounds`"""
+    lower, upper = torch.Tensor(bounds).T
+    return torch.rand(size=[n, len(bounds)]) * (upper - lower) + lower
 
 
 def random_queries(bounds: list[tuple[float, float]], n: int = 1) -> torch.Tensor:

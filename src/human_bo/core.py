@@ -57,18 +57,18 @@ def human_feedback_experiment(
     for i in range(budget):
 
         # Generate new data.
-        candidates = ai.pick_queries(x, y_from_user)
+        x_new = ai.pick_queries(x, y_from_user)
 
-        y_to_user_new = problem_function(candidates)
-        y_from_user_new = user(candidates, y_to_user_new)
+        y_to_user_new = problem_function(x_new)
+        y_from_user_new = user(x_new, y_to_user_new)
 
         # Add data to existing set.
-        x = torch.cat((x, candidates))
+        x = torch.cat((x, x_new))
         y_to_user = torch.cat((y_to_user, y_to_user_new))
         y_from_user = torch.cat((y_from_user, y_from_user_new))
 
         # Statistics for online reporting (regret).
-        y_true_new = problem_function.evaluate_true(candidates)
+        y_true_new = problem_function.evaluate_true(x_new)
 
         y_max = max(y_max, y_true_new.max().item())
         regret = y_optimal - y_max

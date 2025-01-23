@@ -176,6 +176,23 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
     for b in range(budget + 1):
         x, y = queries[: n_init + b], observations[: n_init + b]
 
+        if len(x) == 0:
+
+            # Little hack: very rarely we start experiments with no initial points.
+            # In this case, we _cannot_ compute any of the things we want to do below.
+            # So we just return zero for all of them.
+            results.append(
+                {
+                    "gpr_post_mean": torch.zeros(len(x_linspace)),
+                    "gpr_post_var": torch.zeros(len(x_linspace)),
+                    "x": x,
+                    "y": y,
+                    "acqf": torch.zeros(len(x_linspace)),
+                }
+            )
+
+            continue
+
         with settings.validate_input_scaling(False):
             # We do not want to scale the GPR predictions to align them with real data points.
             gpr = SingleTaskGP(
@@ -235,6 +252,9 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
 
         # Plot results
         ax.plot(x_linspace, m, "b", label="GP Mean function")
+        print(m)
+        print(var)
+        print(x_linspace.squeeze())
         ax.fill_between(
             x_linspace.squeeze(),
             m - var,

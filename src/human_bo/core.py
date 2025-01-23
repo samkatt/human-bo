@@ -104,6 +104,9 @@ class PlainBO:
 
     def pick_queries(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Performs BO given input `x` and `y` data points."""
+        if len(x) == 0:
+            print("WARNING: PlainBO::pick_queries is returning randomly because of empty x.")
+            return test_functions.random_queries(self.bounds)
 
         gpr = SingleTaskGP(
             x,

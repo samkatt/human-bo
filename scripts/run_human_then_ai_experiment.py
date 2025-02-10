@@ -9,7 +9,7 @@ import torch
 
 from human_bo import conf, core, reporting, utils
 from human_bo.factories import pick_test_function
-from human_bo.joint_optimization import human_suggests_second
+from human_bo.collaborative_optimization import human_suggests_second
 from human_bo.test_functions import sample_initial_points
 
 

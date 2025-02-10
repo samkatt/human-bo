@@ -74,6 +74,7 @@ def random_queries(
     bounds: list[tuple[float, float]] | torch.Tensor, n: int = 1
 ) -> torch.Tensor:
     """Create `n` random tensor with values within `bounds`"""
+    # TODO: can this be replaced by from `botorch.utils.sampling.draw_sobol_samples`?
     assert isinstance(n, int)
 
     if not torch.is_tensor(bounds):

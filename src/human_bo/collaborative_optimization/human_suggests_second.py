@@ -76,7 +76,7 @@ def ai_then_human_optimization_experiment(
         )
 
         # Statistics for online reporting.
-        y_true_new = f.evaluate_true(x)
+        y_true_new = f(x, noise=False)
 
         y_max = max(y_max, y_true_new.max().item())
         regret = y_optimal - y_max

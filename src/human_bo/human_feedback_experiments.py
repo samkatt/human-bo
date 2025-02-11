@@ -20,8 +20,9 @@ CONFIG = {
 type UserModel = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
 
 
-def oracle(_x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+def oracle(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     """Returns `y` unmodified (implementation of `UserModel`)"""
+    del x
     return y
 
 
@@ -50,12 +51,13 @@ class GaussianUserModel:
                 torch.tensor(optimal_x), torch.diag(torch.tensor(sigma))
             )
 
-    def __call__(self, x: torch.Tensor, _y: torch.Tensor) -> torch.Tensor:
+    def __call__(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Returns `Normal(x)`
 
         :x: the input value to our Gaussian
-        :_y: ignored
+        :y: ignored
         """
+        del y
         return torch.exp(self.gauss.log_prob(x)) * self.y_multiplier
 
 

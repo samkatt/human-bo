@@ -20,6 +20,31 @@ from human_bo import conf, human_feedback_experiments, utils, visualization
 from human_bo.factories import pick_acqf, pick_kernel, pick_test_function
 
 
+def get_x(new_results):
+
+    # Expected for simple experiments (i.e. `scripts/run_human_ai_experiment.py`).
+    if "initial_points" in new_results:
+        return torch.cat(
+            new_results["query"] + list(new_results["initial_points"]["x"].unsqueeze(1))
+        )
+
+    print("WARN: could not find `initial_points`, so just returning queries")
+    return torch.cat(new_results["query"])
+
+
+def get_y(new_results):
+
+    # Expected for simple experiments (i.e. `scripts/run_human_ai_experiment.py`).
+    if "initial_points" in new_results:
+        return torch.cat(
+            new_results["feedback"]
+            + list(new_results["initial_points"]["y"].unsqueeze(0))
+        )
+
+    print("WARN: could not find `initial_points`, so just returning feedback")
+    return torch.cat(new_results["feedback"])
+
+
 def compare_regrets_over_time(files: list[str]) -> None:
     """Visualizes (plots) the regrets in of `files`
 
@@ -37,7 +62,11 @@ def compare_regrets_over_time(files: list[str]) -> None:
 
         n_init, budget = new_conf["n_init"], new_conf["budget"]
         optimal_value = pick_test_function(new_conf["problem"], noise=0.0).optimal_value
-        y = new_results["y"]
+        y = get_y(new_results)
+
+        if n_init == 0:
+            y = torch.cat((torch.tensor([[-torch.inf]]), y))
+            n_init = 1
 
         regrets = torch.tensor(
             [optimal_value - y[: n_init + i].max() for i in range(budget + 1)]
@@ -158,7 +187,7 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
     x_min, x_max = problem._bounds[0]
     x_linspace = torch.linspace(x_min, x_max, 101).reshape(-1, 1)
     y_truth = problem(x_linspace)
-    queries, observations = new_results["x"], new_results["y"]
+    queries, observations = get_x(new_results), get_y(new_results)
 
     # Get "global" (across all time steps) values.
     optimal_xs = conf.CONFIG["problem"]["parser-arguments"]["choices"][
@@ -252,9 +281,6 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
 
         # Plot results
         ax.plot(x_linspace, m, "b", label="GP Mean function")
-        print(m)
-        print(var)
-        print(x_linspace.squeeze())
         ax.fill_between(
             x_linspace.squeeze(),
             m - var,

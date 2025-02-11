@@ -44,4 +44,7 @@ disable = [
   "invalid-name",
   "line-too-long",
   "protected-access",
+  "missing-class-docstring",
+  "missing-function-docstring",
+  "R0801",
 ]

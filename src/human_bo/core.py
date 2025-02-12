@@ -1,5 +1,7 @@
 """Main functions for running experiments"""
 
+from typing import Callable
+
 import torch
 from botorch.fit import fit_gpytorch_mll
 from botorch.models import SingleTaskGP
@@ -8,7 +10,37 @@ from botorch.models.transforms.outcome import Standardize
 from botorch.optim import optimize_acqf
 from gpytorch.mlls import ExactMarginalLogLikelihood
 
-from human_bo import factories, test_functions
+from human_bo import factories
+
+
+def random_queries(
+    bounds: list[tuple[float, float]] | torch.Tensor, n: int = 1
+) -> torch.Tensor:
+    """Create `n` random tensor with values within `bounds`"""
+    assert isinstance(n, int)
+
+    if not torch.is_tensor(bounds):
+        bounds = torch.Tensor(bounds).T
+
+    lower, upper = bounds
+    return torch.rand(size=[n, bounds.shape[1]]) * (upper - lower) + lower
+
+
+def sample_initial_points(
+    f: Callable[[torch.Tensor], torch.Tensor],
+    input_bounds: list[tuple[float, float]] | torch.Tensor,
+    n_init: int,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Generates `n_init` random `x -> y` values.
+
+    Will return them as a `(x, y)` tuple.
+    """
+    assert isinstance(n_init, int)
+
+    x = random_queries(input_bounds, n_init)
+    y = f(x)
+
+    return x, y
 
 
 class PlainBO:
@@ -38,7 +70,7 @@ class PlainBO:
             print(
                 "WARN: PlainBO::pick_queries is returning randomly because of empty x."
             )
-            return test_functions.random_queries(self.bounds)
+            return random_queries(self.bounds)
 
         gpr = SingleTaskGP(
             x,

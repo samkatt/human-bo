@@ -10,7 +10,6 @@ import torch
 from human_bo import conf, core, interaction_loops, reporting, utils
 from human_bo.collaborative_optimization import human_suggests_second
 from human_bo.factories import pick_test_function
-from human_bo.test_functions import sample_initial_points
 
 
 def main():
@@ -58,7 +57,7 @@ def main():
 
     torch.manual_seed(exp_params["seed"])
 
-    # Create problem.
+    # Create problem and evaluation.
     f = pick_test_function(exp_params["problem"], exp_params["problem_noise"])
     problem = Problem(f)
 
@@ -70,7 +69,9 @@ def main():
     evaluation = Evaluation(f, report_step)
 
     # Create Agents
-    x_init_ai, y_init_ai = sample_initial_points(f, f._bounds, exp_params["n_init"])
+    x_init_ai, y_init_ai = core.sample_initial_points(
+        f, f._bounds, exp_params["n_init"]
+    )
     agent = AI(
         f._bounds, exp_params["kernel"], exp_params["acqf"], x_init_ai, y_init_ai
     )

@@ -1,6 +1,6 @@
 """Testing and example code for multi-objective optimization."""
 
-from typing import Callable
+from typing import Any, Callable
 
 import torch
 from botorch import fit_gpytorch_mll, posteriors
@@ -14,7 +14,107 @@ from botorch.utils.multi_objective.box_decompositions import dominated
 from gpytorch.mlls import ExactMarginalLogLikelihood, sum_marginal_log_likelihood
 from torch.distributions import multivariate_normal
 
-from human_bo import test_functions
+from human_bo import core, interaction_loops, reporting
+
+type UtilityFunction = Callable[[torch.Tensor], torch.Tensor]
+
+
+def moo_learn_subjective_function():
+    """Experiment on multi-objective optimization where the only unknown is one (unmeasurable) objective function."""
+    # Parameters.
+    noise_std = [0.2, 0.4]
+    test_function = moo_test_functions.BraninCurrin
+    budget = 20
+    unknown_output_idx = 0
+
+    # n_init = 6
+    # num_restarts_acqf = 8
+    # raw_samples_acqf = 128
+
+    # Setup problem.
+    moo_function = test_function(noise_std)
+
+    preference_weights = core.random_queries(
+        [(0, 1) for _ in range(moo_function.dim)]
+    ).squeeze()
+    preference_weights = preference_weights / preference_weights.sum()
+
+    utility_function = objective.LinearMCObjective(preference_weights)
+
+    # Setup interaction components.
+    agent = BayesOptGivenOneUnknownObjective(moo_function, unknown_output_idx)
+    problem = MOOProblem(moo_function, utility_function)
+    evaluation = MOOEvaluation(moo_function, utility_function, reporting.print_dot)
+
+    res = interaction_loops.basic_interleaving(agent, problem, evaluation, budget)
+
+    print(res)
+
+
+class BayesOptGivenOneUnknownObjective(interaction_loops.Agent):
+    """Bayes opt of some utility given 1 unknown objective."""
+
+    def __init__(self, moo_function, unknown_output_idx: int):
+        # TODO: set up surrogate model over output `unknown_output_idx` and Bayes optimization.
+        self.moo_function = moo_function
+        self.unknown_output_idx = unknown_output_idx
+
+    def pick_query(self) -> tuple[Any, dict[str, Any]]:
+        # TODO: implement.
+        raise NotImplementedError()
+
+    def observe(self, query, feedback, evaluation) -> None:
+        del query, feedback, evaluation
+        # TODO: implement.
+        raise NotImplementedError()
+
+
+class MOOProblem(interaction_loops.Problem):
+    """Typical MOO problem."""
+
+    def __init__(self, moo_function, utility_function: UtilityFunction):
+        self.moo_function = moo_function
+        self.utility_functiion = utility_function
+
+    def give_feedback(self, query) -> tuple[Any, dict[str, Any]]:
+        objectives = self.moo_function(query)
+        feedback = self.utility_functiion(objectives)
+
+        return feedback, {"objectives": objectives}
+
+    def observe(self, query, feedback, evaluation) -> None:
+        del query, feedback, evaluation
+
+
+class MOOEvaluation(interaction_loops.Evaluation):
+    """Evaluates the true value of query and tracks regret and max y."""
+
+    def __init__(self, moo_function, utility_function: UtilityFunction, report_step):
+        self.moo_function = moo_function
+        self.utility_function = utility_function
+        self.u_max = -torch.inf
+        self.report_step = report_step
+        self.step = 0
+
+    def __call__(self, query, feedback) -> tuple[Any, dict[str, Any]]:
+        del feedback
+
+        objectives_true = self.moo_function(query, noise=False)
+        utility_true = self.utility_function(objectives_true)
+
+        self.u_max = max(self.u_max, utility_true.max().item())
+        # TODO: implement regret tracking.
+
+        evaluation = {
+            "utility_true": utility_true,
+            "y_max": self.u_max,
+            "objectives_true": objectives_true,
+        }
+
+        self.report_step(evaluation, self.step)
+        self.step += 1
+
+        return None, evaluation
 
 
 def run_moo_example():
@@ -32,7 +132,7 @@ def run_moo_example():
     raw_samples_acqf = 128
 
     problem = test_func(noise_std, negate=True)
-    train_x = test_functions.random_queries(problem.bounds, n_init)
+    train_x = core.random_queries(problem.bounds, n_init)
     train_y = problem(train_x)
 
     true_y = problem(train_x, noise=False)
@@ -40,9 +140,7 @@ def run_moo_example():
     x_dim = train_x.shape[1]
     y_dim = train_y.shape[1]
 
-    preference_weights = test_functions.random_queries(
-        [(0, 1) for _ in range(y_dim)]
-    ).squeeze()
+    preference_weights = core.random_queries([(0, 1) for _ in range(y_dim)]).squeeze()
     preference_weights = preference_weights / preference_weights.sum()
     max_utility = torch.matmul(true_y, preference_weights).max().item()
 
@@ -123,7 +221,7 @@ def foo():
     raw_samples_acqf = 128
 
     problem = test_func(noise_std, negate=True)
-    train_x = test_functions.random_queries(problem.bounds, n_init)
+    train_x = core.random_queries(problem.bounds, n_init)
     train_y = problem(train_x)
 
     true_y = -problem.evaluate_true(train_x)
@@ -131,9 +229,7 @@ def foo():
     x_dim = train_x.shape[1]
     y_dim = train_y.shape[1]
 
-    preference_weights = test_functions.random_queries(
-        [(0, 1) for _ in range(y_dim)]
-    ).squeeze()
+    preference_weights = core.random_queries([(0, 1) for _ in range(y_dim)]).squeeze()
     preference_weights = preference_weights / preference_weights.sum()
     max_utility = torch.matmul(true_y, preference_weights).max().item()
 
@@ -243,4 +339,4 @@ class BotorchModelFromCallable(model.Model):
 
 
 if __name__ == "__main__":
-    foo()
+    moo_learn_subjective_function()

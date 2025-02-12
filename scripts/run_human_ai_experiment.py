@@ -14,7 +14,6 @@ from human_bo import (
     human_feedback_experiments,
     interaction_loops,
     reporting,
-    test_functions,
     utils,
 )
 
@@ -61,18 +60,19 @@ def main():
 
     torch.manual_seed(exp_params["seed"])
 
-    # Create result reporting
+    # Create problem and evaluation.
+    problem_function = factories.pick_test_function(
+        exp_params["problem"], exp_params["problem_noise"]
+    )
     report_step = (
         reporting.initiate_and_create_wandb_logger(args.wandb, exp_params)
         if args.wandb
         else reporting.print_dot
     )
+    evaluation = Evaluation(problem_function, report_step)
 
-    problem_function = factories.pick_test_function(
-        exp_params["problem"], exp_params["problem_noise"]
-    )
-
-    x_init, y_init = test_functions.sample_initial_points(
+    # Create Agents
+    x_init, y_init = core.sample_initial_points(
         problem_function, problem_function._bounds, exp_params["n_init"]
     )
 
@@ -90,7 +90,6 @@ def main():
         ],
         problem_function,
     )
-    evaluation = Evaluation(problem_function, report_step)
 
     print(f"Running experiment for {path}")
     res = interaction_loops.basic_interleaving(
@@ -103,6 +102,8 @@ def main():
 
 
 class AI(interaction_loops.Agent):
+    """Simple Bayes optimization Agent"""
+
     def __init__(self, bounds, kernel, acqf, x_init, y_init):
         self.bo = core.PlainBO(kernel, acqf, bounds)
         self.x, self.y = x_init, y_init
@@ -119,6 +120,8 @@ class AI(interaction_loops.Agent):
 
 
 class Human(interaction_loops.Problem):
+    """The 'problem' in BO, represented by (optional) user model."""
+
     def __init__(self, user_model, x_optimal, problem_function):
         self.problem_function = problem_function
         self.user = human_feedback_experiments.pick_user_model(
@@ -146,6 +149,7 @@ class Evaluation(interaction_loops.Evaluation):
 
     def __call__(self, query, feedback) -> tuple[Any, dict[str, Any]]:
         del feedback
+
         y_true = self.problem_function(query, noise=False)
 
         self.y_max = max(self.y_max, y_true.max().item())

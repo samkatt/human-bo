@@ -11,7 +11,7 @@ from typing import Any
 
 import torch
 
-from human_bo import core, interaction_loops, test_functions
+from human_bo import core, interaction_loops
 
 CONFIG = {
     "user_model": {
@@ -53,7 +53,7 @@ class RandomUser(interaction_loops.User):
         self.bounds = bounds
 
     def pick_action(self, query) -> tuple[Any, dict[str, Any]]:
-        action = torch.cat((query, test_functions.random_queries(self.bounds)))
+        action = torch.cat((query, core.random_queries(self.bounds)))
         return action, {}
 
     def observe(self, action, feedback, evaluation) -> None:
@@ -67,7 +67,7 @@ def create_user(
         case "random":
             return RandomUser(f._bounds), {}
         case "bo":
-            x_init, y_init = test_functions.sample_initial_points(f, f._bounds, n_init)
+            x_init, y_init = core.sample_initial_points(f, f._bounds, n_init)
             return BayesOptUser(
                 f._bounds,
                 kernel,

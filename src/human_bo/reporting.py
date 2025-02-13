@@ -27,3 +27,10 @@ def initiate_and_create_wandb_logger(
 
     wandb.init(config=exp_conf, **wandb_conf)
     return lambda step_data, step: wandb.log(step_data, step=step)
+
+def print_step_data(step_data: StepData, step: int) -> None:
+    """Prints a dot to the terminal, can be used to track progress."""
+    del step
+    print(step_data)
+
+

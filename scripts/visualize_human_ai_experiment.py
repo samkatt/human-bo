@@ -8,15 +8,11 @@ import warnings
 from typing import Any
 
 import matplotlib.pyplot as plt
-import numpy as np
 import torch
-from botorch import settings
-from botorch.fit import fit_gpytorch_mll
-from botorch.models import SingleTaskGP
-from gpytorch.mlls import ExactMarginalLogLikelihood
+from botorch.models.transforms import outcome
 from matplotlib.widgets import Slider
 
-from human_bo import conf, human_feedback_experiments, utils, visualization
+from human_bo import conf, core, human_feedback_experiments, utils, visualization
 from human_bo.factories import pick_acqf, pick_kernel, pick_test_function
 
 
@@ -25,7 +21,7 @@ def get_x(new_results):
     # Expected for simple experiments (i.e. `scripts/run_human_ai_experiment.py`).
     if "initial_points" in new_results:
         return torch.cat(
-            new_results["query"] + list(new_results["initial_points"]["x"].unsqueeze(1))
+            list(new_results["initial_points"]["x"].unsqueeze(1)) + new_results["query"]
         )
 
     print("WARN: could not find `initial_points`, so just returning queries")
@@ -37,12 +33,20 @@ def get_y(new_results):
     # Expected for simple experiments (i.e. `scripts/run_human_ai_experiment.py`).
     if "initial_points" in new_results:
         return torch.cat(
-            new_results["feedback"]
-            + list(new_results["initial_points"]["y"].unsqueeze(0))
+            list(new_results["initial_points"]["y"].unsqueeze(0))
+            + new_results["feedback"]
         )
 
     print("WARN: could not find `initial_points`, so just returning feedback")
     return torch.cat(new_results["feedback"])
+
+
+def get_regrets(new_results):
+    return torch.Tensor([x["regret"] for x in new_results["evaluation_stats"]])
+
+
+def get_y_max(new_results):
+    return torch.Tensor([x["y_max"] for x in new_results["evaluation_stats"]])
 
 
 def compare_regrets_over_time(files: list[str]) -> None:
@@ -59,18 +63,7 @@ def compare_regrets_over_time(files: list[str]) -> None:
         # Load the file and initiated configurations and results.
         new_results = torch.load(file, weights_only=True)
         new_conf = new_results["conf"]
-
-        n_init, budget = new_conf["n_init"], new_conf["budget"]
-        optimal_value = pick_test_function(new_conf["problem"], noise=0.0).optimal_value
-        y = get_y(new_results)
-
-        if n_init == 0:
-            y = torch.cat((torch.tensor([[-torch.inf]]), y))
-            n_init = 1
-
-        regrets = torch.tensor(
-            [optimal_value - y[: n_init + i].max() for i in range(budget + 1)]
-        )
+        regrets = get_y_max(new_results)
 
         # Make sure experiment shares the same parameters.
         for k, c in conf.CONFIG.items():
@@ -115,7 +108,8 @@ def compare_regrets_over_time(files: list[str]) -> None:
     ):
         r = e["regrets"]
         e["mean_regret"] = r.mean(axis=1)
-        e["std_regret"] = 1.96 * r.std(axis=1) / math.sqrt(r.shape[1])
+        # e["std_regret"] = 1.96 * r.std(axis=1) / math.sqrt(r.shape[1])
+        e["std_regret"] = r.std(axis=1) / math.sqrt(r.shape[1])
 
     fig = plt.figure(figsize=(8, 6))
 
@@ -180,6 +174,7 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
     budget, n_init = exp_params["budget"], exp_params["n_init"]
     problem = pick_test_function(exp_params["problem"], noise=0.0)
 
+    bounds = torch.tensor(problem._bounds).T
     x_min, x_max = problem._bounds[0]
     x_linspace = torch.linspace(x_min, x_max, 101).reshape(-1, 1)
     y_truth = problem(x_linspace)
@@ -218,24 +213,20 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
 
             continue
 
-        with settings.validate_input_scaling(False):
-            # We do not want to scale the GPR predictions to align them with real data points.
-            gpr = SingleTaskGP(
-                x,
-                y,
-                covar_module=pick_kernel(exp_params["kernel"], 1),
-                outcome_transform=None,
-            )
-
-        mll = ExactMarginalLogLikelihood(gpr.likelihood, gpr)
-        fit_gpytorch_mll(mll)
-
-        gpr_post_mean = gpr.likelihood(gpr(x_linspace)).mean.detach().numpy()
-        gpr_post_var = np.sqrt(
-            gpr.likelihood(gpr(x_linspace)).variance.detach().numpy()
+        gpr = core.fit_gp(
+            x, y, pick_kernel(exp_params["kernel"], 1), input_bounds=bounds
         )
 
-        acqf = pick_acqf(exp_params["acqf"], y, gpr, torch.tensor(problem._bounds).T)
+        posteriors = gpr.posterior(x_linspace)
+        gpr_post_mean = posteriors.mean.squeeze().detach().numpy()
+        gpr_post_var = posteriors.variance.squeeze().detach().numpy()
+
+        acqf = pick_acqf(
+            exp_params["acqf"],
+            outcome.Standardize(m=1)(y)[0],
+            gpr,
+            bounds,
+        )
         acqf_eval = acqf(x_linspace[:, None, :]).detach().numpy()
 
         results.append(

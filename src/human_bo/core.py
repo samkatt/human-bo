@@ -2,6 +2,7 @@
 
 from typing import Callable
 
+# TODO: fix imports.
 import torch
 from botorch.fit import fit_gpytorch_mll
 from botorch.models import SingleTaskGP
@@ -43,6 +44,27 @@ def sample_initial_points(
     return x, y
 
 
+def fit_gp(x, y, kernel, input_bounds: torch.Tensor | None = None) -> SingleTaskGP:
+    """My go-to function for fitting GPs.
+
+    Will normalize input (`x`) and standardize output (`y`).
+    """
+    dim = x.shape[-1]
+
+    gp = SingleTaskGP(
+        x,
+        y,
+        covar_module=kernel,
+        input_transform=Normalize(d=dim, bounds=input_bounds),
+        outcome_transform=Standardize(m=1),
+    )
+
+    mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
+    fit_gpytorch_mll(mll)
+
+    return gp
+
+
 class PlainBO:
     """Bayesian optimization agent."""
 
@@ -72,19 +94,11 @@ class PlainBO:
             )
             return random_queries(self.bounds)
 
-        gpr = SingleTaskGP(
-            x,
-            y,
-            covar_module=factories.pick_kernel(self.kernel, self.dim),
-            input_transform=Normalize(d=self.dim),
-            outcome_transform=Standardize(m=1),
-        )
-        mll = ExactMarginalLogLikelihood(gpr.likelihood, gpr)
-        fit_gpytorch_mll(mll)
+        gp = fit_gp(x, y, factories.pick_kernel(self.kernel, self.dim), self.bounds)
 
         candidates, _ = optimize_acqf(
             acq_function=factories.pick_acqf(
-                self.acqf, Standardize(m=1)(y)[0], gpr, self.bounds
+                self.acqf, Standardize(m=1)(y)[0], gp, self.bounds
             ),
             bounds=self.bounds,
             q=1,  # batch size, i.e. we only query one point

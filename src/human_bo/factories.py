@@ -74,16 +74,12 @@ def pick_acqf(
 
     # create MES acquisition function
     mes_n_candidates = 100  # size of candidate set to approximate MES
-    mes_candidate_set = torch.rand(
-        mes_n_candidates, bounds.size(1), device=bounds.device, dtype=bounds.dtype
-    )
+    mes_candidate_set = torch.rand(mes_n_candidates, bounds.size(1))
     mes_candidate_set = bounds[0] + (bounds[1] - bounds[0]) * mes_candidate_set
     mes = qMaxValueEntropy(gpr, mes_candidate_set)
 
     acqf_mapping: dict[str, AcquisitionFunction] = {
-        "UCB": UpperConfidenceBound(
-            gpr, beta=0.2  # 0.2 is basic value for normalized data,
-        ),
+        "UCB": UpperConfidenceBound(gpr, beta=0.2),
         "MES": mes,
         "EI": LogExpectedImprovement(gpr, y.max()),
     }

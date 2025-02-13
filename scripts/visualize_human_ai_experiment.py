@@ -130,11 +130,7 @@ def compare_regrets_over_time(files: list[str]) -> None:
             range(len(mean)),
             mean,
             label=" ".join(
-                [
-                    v
-                    for k, v in exp_params.items()
-                    if "experiment-parameter" in conf.CONFIG[k]["tags"]
-                ]
+                conf.get_values_with_tag(exp_params, "experiment-parameter")
             ),
             linestyle="--",
         )
@@ -309,12 +305,8 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
         ax.set_ylabel("y")
         ax.legend(shadow=True)
         ax.set_title(
-            " ".join(
-                [
-                    str(v)
-                    for k, v in exp_params.items()
-                    if "experiment-parameter" in conf.CONFIG[k]["tags"]
-                ]
+            "_".join(
+                conf.get_values_with_tag(exp_params, "experiment-parameter")
                 + [str(exp_params["seed"])]
             )
         )

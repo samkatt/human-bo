@@ -42,21 +42,15 @@ def main():
     args = parser.parse_args()
     exp_params = conf.from_ns(args)
 
-    experiment_name = (
-        "_".join(
-            [
-                str(v)
-                for k, v in exp_params.items()
-                if "experiment-parameter" in exp_conf[k]["tags"]
-            ]
-        )
-        + "_"
-        + str(exp_params["seed"])
+    experiment_name = "_".join(
+        conf.get_values_with_tag(exp_params, "experiment-parameter", exp_conf)
+        + [str(exp_params["seed"])]
     )
+
     path = args.save_path + "/" + experiment_name + ".pt"
 
     utils.exit_if_exists(path)
-    utils.exit_if_exists(args.save_path, negate=True)
+    utils.create_directory_if_does_not_exist(args.save_path)
 
     torch.manual_seed(exp_params["seed"])
 
@@ -65,7 +59,7 @@ def main():
         exp_params["problem"], exp_params["problem_noise"]
     )
     report_step = (
-        reporting.initiate_and_create_wandb_logger(args.wandb, exp_params)
+        reporting.initiate_and_create_wandb_logger(args.wandb, exp_params, exp_conf)
         if args.wandb
         else reporting.print_dot
     )

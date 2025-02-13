@@ -38,8 +38,8 @@ class ObjectiveFunctionModel(botorch_model.Model):
         if output_indices:
             X = X[..., output_indices]
 
-        posterior = torch_posterior.TorchPosterior(distribution=self(X))
+        ret = torch_posterior.TorchPosterior(distribution=self(X))
         if posterior_transform is not None:
-            posterior = posterior_transform(posterior)
+            ret = posterior_transform(ret)
 
-        return posterior
+        return ret

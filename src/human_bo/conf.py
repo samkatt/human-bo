@@ -92,3 +92,14 @@ def from_ns(ns: Namespace) -> dict[str, Any]:
         conf[k] = v["type"](ns_dict[k])
 
     return conf
+
+
+def get_values_with_tag(
+    exp_params: dict[str, Any],
+    tag: str,
+    exp_conf: dict[str, dict[str, Any]] | None = None,
+) -> list[str]:
+    """Returns values in `exp_params` of entries with keys that have `tag` in `exp_conf"""
+    if exp_conf is None:
+        exp_conf = CONFIG
+    return [str(v) for k, v in exp_params.items() if tag in exp_conf[k]["tags"]]

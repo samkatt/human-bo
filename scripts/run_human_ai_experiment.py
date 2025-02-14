@@ -103,8 +103,8 @@ class AI(interaction_loops.Agent):
         self.x, self.y = x_init, y_init
 
     def pick_query(self) -> tuple[Any, dict[str, Any]]:
-        query = self.bo.pick_queries(self.x, self.y)
-        return query, {}
+        query, val = self.bo.pick_queries(self.x, self.y)
+        return query, {"acqf_value": val}
 
     def observe(self, query, feedback, evaluation) -> None:
         del evaluation

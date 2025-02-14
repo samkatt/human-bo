@@ -2,12 +2,11 @@
 
 from typing import Callable
 
-# TODO: fix imports.
 import torch
 from botorch.fit import fit_gpytorch_mll
 from botorch.models import SingleTaskGP
-from botorch.models.transforms.input import Normalize
-from botorch.models.transforms.outcome import Standardize
+from botorch.models.transforms import input as input_transform
+from botorch.models.transforms import outcome as outcome_transform
 from botorch.optim import optimize_acqf
 from gpytorch.mlls import ExactMarginalLogLikelihood
 
@@ -55,8 +54,8 @@ def fit_gp(x, y, kernel, input_bounds: torch.Tensor | None = None) -> SingleTask
         x,
         y,
         covar_module=kernel,
-        input_transform=Normalize(d=dim, bounds=input_bounds),
-        outcome_transform=Standardize(m=1),
+        input_transform=input_transform.Normalize(d=dim, bounds=input_bounds),
+        outcome_transform=outcome_transform.Standardize(m=1),
     )
 
     mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
@@ -86,19 +85,21 @@ class PlainBO:
         self.bounds = torch.tensor(bounds).T
         self.dim = self.bounds.shape[1]
 
-    def pick_queries(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    def pick_queries(
+        self, x: torch.Tensor, y: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Performs BO given input `x` and `y` data points."""
         if len(x) == 0:
             print(
                 "WARN: PlainBO::pick_queries is returning randomly because of empty x."
             )
-            return random_queries(self.bounds)
+            return random_queries(self.bounds), torch.Tensor(0)
 
         gp = fit_gp(x, y, factories.pick_kernel(self.kernel, self.dim), self.bounds)
 
-        candidates, _ = optimize_acqf(
+        candidates, acqf_val = optimize_acqf(
             acq_function=factories.pick_acqf(
-                self.acqf, Standardize(m=1)(y)[0], gp, self.bounds
+                self.acqf, outcome_transform.Standardize(m=1)(y)[0], gp, self.bounds
             ),
             bounds=self.bounds,
             q=1,  # batch size, i.e. we only query one point
@@ -106,4 +107,4 @@ class PlainBO:
             raw_samples=512,
         )
 
-        return candidates
+        return candidates, acqf_val

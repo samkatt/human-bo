@@ -30,8 +30,8 @@ class BayesOptUser(interaction_loops.User):
         self.x, self.y = x_init, y_init
 
     def pick_action(self, query) -> tuple[Any, dict[str, Any]]:
-        query = self.bo.pick_queries(self.x, self.y)
-        return query, {}
+        query, val = self.bo.pick_queries(self.x, self.y)
+        return query, {"acqf_value": val}
 
     def observe(self, action, feedback, evaluation) -> None:
         del evaluation

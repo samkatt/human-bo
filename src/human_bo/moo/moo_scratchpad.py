@@ -224,7 +224,7 @@ def foo():
     train_x = core.random_queries(problem.bounds, n_init)
     train_y = problem(train_x)
 
-    true_y = -problem.evaluate_true(train_x)
+    true_y = problem(train_x, noise=False)
 
     x_dim = train_x.shape[1]
     y_dim = train_y.shape[1]
@@ -286,7 +286,7 @@ def foo():
         train_y = torch.cat((train_y, feedback))
 
         # Reporting statistics.
-        queries_true_value = -problem.evaluate_true(queries)
+        queries_true_value = problem(queries, noise=False)
         true_y = torch.cat((true_y, queries_true_value))
         max_utility = max(
             max_utility,

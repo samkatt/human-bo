@@ -12,8 +12,15 @@ import torch
 from botorch.models.transforms import outcome
 from matplotlib.widgets import Slider
 
-from human_bo import conf, core, human_feedback_experiments, utils, visualization
-from human_bo.factories import pick_acqf, pick_kernel, pick_test_function
+from human_bo import (
+    conf,
+    core,
+    human_feedback_experiments,
+    utils,
+    visualization,
+    test_functions,
+)
+from human_bo.core import pick_acqf
 
 
 def get_x(new_results):
@@ -172,7 +179,7 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
 
     # Load configurations and results.
     budget, n_init = exp_params["budget"], exp_params["n_init"]
-    problem = pick_test_function(exp_params["problem"], noise=0.0)
+    problem = test_functions.pick_test_function(exp_params["problem"], noise=0.0)
 
     bounds = torch.tensor(problem._bounds).T
     x_min, x_max = problem._bounds[0]
@@ -214,7 +221,7 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
             continue
 
         gpr = core.fit_gp(
-            x, y, pick_kernel(exp_params["kernel"], 1), input_bounds=bounds
+            x, y, core.pick_kernel(exp_params["kernel"], 1), input_bounds=bounds
         )
 
         posteriors = gpr.posterior(x_linspace)

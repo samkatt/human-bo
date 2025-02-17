@@ -7,9 +7,8 @@ from typing import Any
 
 import torch
 
-from human_bo import conf, core, interaction_loops, reporting, utils
+from human_bo import conf, core, interaction_loops, reporting, test_functions, utils
 from human_bo.collaborative_optimization import human_suggests_second
-from human_bo.factories import pick_test_function
 
 
 def main():
@@ -52,7 +51,9 @@ def main():
     torch.manual_seed(exp_params["seed"])
 
     # Create problem and evaluation.
-    f = pick_test_function(exp_params["problem"], exp_params["problem_noise"])
+    f = test_functions.pick_test_function(
+        exp_params["problem"], exp_params["problem_noise"]
+    )
     problem = Problem(f)
 
     report_step = (

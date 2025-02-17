@@ -1,16 +1,83 @@
 """Main functions for running experiments"""
 
-from typing import Callable
+from typing import Any, Callable
 
 import torch
+from botorch.acquisition import analytic, qMaxValueEntropy
 from botorch.fit import fit_gpytorch_mll
 from botorch.models import SingleTaskGP
 from botorch.models.transforms import input as input_transform
 from botorch.models.transforms import outcome as outcome_transform
 from botorch.optim import optimize_acqf
+from gpytorch import kernels
 from gpytorch.mlls import ExactMarginalLogLikelihood
 
-from human_bo import factories
+from human_bo import interaction_loops
+
+
+def pick_acqf(
+    acqf: str, y: torch.Tensor, gpr: SingleTaskGP, bounds: torch.Tensor
+) -> analytic.AcquisitionFunction:
+    """Instantiate the given acqf.
+
+    :acqf: string representation of the acquisition function to pick
+    :y: initial y values (probably to compute the max)
+    :gpr: the GP used by the acquisition function
+    :bounds: [x,y] bounds on the function
+    """
+
+    # create MES acquisition function
+    mes_n_candidates = 100  # size of candidate set to approximate MES
+    mes_candidate_set = torch.rand(mes_n_candidates, bounds.size(1))
+    mes_candidate_set = bounds[0] + (bounds[1] - bounds[0]) * mes_candidate_set
+    mes = qMaxValueEntropy(gpr, mes_candidate_set)
+
+    acqf_mapping: dict[str, analytic.AcquisitionFunction] = {
+        "UCB": analytic.UpperConfidenceBound(gpr, beta=0.2),
+        "MES": mes,
+        "EI": analytic.LogExpectedImprovement(gpr, y.max()),
+    }
+
+    try:
+        return acqf_mapping[acqf]
+    except KeyError as error:
+        raise KeyError(
+            f"{acqf} is not an accepted acquisition function (not in {acqf_mapping.keys()})"
+        ) from error
+
+
+def pick_kernel(ker: str, dim: int) -> kernels.ScaleKernel:
+    """Instantiate the given kernel.
+
+    :ker: string representation of the kernel
+    :dim: number of dimensions of the kernel
+    """
+
+    # ScaleKernel adds the amplitude hyper-parameter.
+    kernel_mapping: dict = {
+        "RBF": kernels.ScaleKernel(kernels.RBFKernel(ard_num_dims=dim)),
+        "Matern": kernels.ScaleKernel(kernels.MaternKernel(ard_num_dims=dim)),
+        "Default": None,
+    }
+
+    try:
+        return kernel_mapping[ker]
+    except KeyError as error:
+        raise KeyError(
+            f"{ker} is not an accepted kernel (not in {kernel_mapping.keys()})"
+        ) from error
+
+
+class RandomAgent(interaction_loops.Agent):
+    def __init__(self, bounds):
+        self.bounds = bounds
+
+    def pick_query(self) -> tuple[Any, dict[str, Any]]:
+        random_query = random_queries(self.bounds)
+        return random_query, {}
+
+    def observe(self, query, feedback, evaluation) -> None:
+        del query, feedback, evaluation
 
 
 def random_queries(
@@ -95,10 +162,10 @@ class PlainBO:
             )
             return random_queries(self.bounds), torch.Tensor(0)
 
-        gp = fit_gp(x, y, factories.pick_kernel(self.kernel, self.dim), self.bounds)
+        gp = fit_gp(x, y, pick_kernel(self.kernel, self.dim), self.bounds)
 
         candidates, acqf_val = optimize_acqf(
-            acq_function=factories.pick_acqf(
+            acq_function=pick_acqf(
                 self.acqf, outcome_transform.Standardize(m=1)(y)[0], gp, self.bounds
             ),
             bounds=self.bounds,

@@ -10,7 +10,7 @@ import torch
 from human_bo import (
     conf,
     core,
-    factories,
+    test_functions,
     human_feedback_experiments,
     interaction_loops,
     reporting,
@@ -55,7 +55,7 @@ def main():
     torch.manual_seed(exp_params["seed"])
 
     # Create problem and evaluation.
-    problem_function = factories.pick_test_function(
+    problem_function = test_functions.pick_test_function(
         exp_params["problem"], exp_params["problem_noise"]
     )
     report_step = (
@@ -86,9 +86,7 @@ def main():
     )
 
     print(f"Running experiment for {path}")
-    res = interaction_loops.basic_interleaving(
-        ai, human, evaluation, exp_params["budget"]
-    )
+    res = interaction_loops.basic_loop(ai, human, evaluation, exp_params["budget"])
     res["conf"] = exp_params
     res["initial_points"] = {"x": x_init, "y": y_init}
 
@@ -151,14 +149,20 @@ class Evaluation(interaction_loops.Evaluation):
         feedback_stats: dict[str, Any],
         **kwargs,
     ) -> tuple[Any, dict[str, Any]]:
-        del feedback, query_stats, feedback_stats, kwargs
+        del feedback, kwargs
 
         y_true = self.problem_function(query, noise=False)
 
         self.y_max = max(self.y_max, y_true.max().item())
         regret = self.problem_function.optimal_value - self.y_max
 
-        evaluation = {"y_true": y_true, "y_max": self.y_max, "regret": regret}
+        evaluation = {
+            "y_true": y_true,
+            "y_max": self.y_max,
+            "regret": regret,
+            "query_stats": query_stats,
+            "feedback_stats": feedback_stats,
+        }
 
         self.report_step(evaluation, self.step)
         self.step += 1

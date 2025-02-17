@@ -3,11 +3,11 @@
 from typing import List, Optional, Tuple
 
 import torch
-from botorch.test_functions.synthetic import SyntheticTestFunction
+from botorch import test_functions
 from torch import Tensor, sin
 
 
-class Zhou(SyntheticTestFunction):
+class Zhou(test_functions.SyntheticTestFunction):
     """The Zhou (1-dimensional) function (https://www.sfu.ca/~ssurjano/zhou98.html)"""
 
     _optimal_value = 2.002595246981888
@@ -36,7 +36,7 @@ class Zhou(SyntheticTestFunction):
         return 5 * (phi_zou(part1) + phi_zou(part2))
 
 
-class Forrester(SyntheticTestFunction):
+class Forrester(test_functions.SyntheticTestFunction):
     """The Forrester (1-dimensional) function (https://www.sfu.ca/~ssurjano/forretal08.html)"""
 
     def __init__(
@@ -66,3 +66,28 @@ class Forrester(SyntheticTestFunction):
 
     def evaluate_true(self, X: Tensor) -> Tensor:
         return -((6 * X - 2) ** 2) * sin(12 * X - 4)
+
+
+def pick_test_function(func: str, noise: float) -> test_functions.SyntheticTestFunction:
+    """Instantiate the given function to optimize.
+
+    :func: string description of the test function to return
+    :noise: standard deviation of the noise
+    """
+
+    test_function_mapping: dict[str, test_functions.SyntheticTestFunction] = {
+        "Forrester": Forrester(noise_std=noise),
+        "Zhou": Zhou(noise_std=noise),
+        "Hartmann": test_functions.Hartmann(negate=True, noise_std=noise),
+        "Branin": test_functions.Branin(negate=True, noise_std=noise),
+        "Rosenbrock": test_functions.Rosenbrock(
+            dim=2, negate=True, bounds=[(-5.0, 5.0), (-5.0, 5.0)], noise_std=noise
+        ),
+    }
+
+    try:
+        return test_function_mapping[func]
+    except KeyError as error:
+        raise KeyError(
+            f"{func} is not an accepted test function (not in {test_function_mapping.keys()})"
+        ) from error

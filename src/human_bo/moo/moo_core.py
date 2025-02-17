@@ -3,8 +3,7 @@
 import torch
 from botorch.acquisition import objective
 from botorch.models import model as botorch_model
-from botorch.posteriors import posterior
-from botorch.posteriors import torch as torch_posterior
+from botorch.posteriors import posterior, torch as torch_posterior
 from torch import distributions
 
 

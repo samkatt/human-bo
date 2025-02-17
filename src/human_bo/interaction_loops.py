@@ -29,7 +29,7 @@ class User(Protocol):
     def observe(self, action, feedback, evaluation) -> None: ...
 
 
-def basic_interleaving(
+def basic_loop(
     agent: Agent, problem: Problem, evaluation_function: Evaluation, budget: int
 ):
     """Runs typical interleaving scheme where `agent` and `problem` are prompted one after the other"""

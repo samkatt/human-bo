@@ -144,6 +144,6 @@ def ai_advices_human_loop(
         ):
             evaluations[key].append(val)
 
-        k = k + ai_query.shape[0]
+        k = k + user_query.shape[0]
 
     return evaluations

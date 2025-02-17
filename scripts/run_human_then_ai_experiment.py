@@ -91,6 +91,8 @@ def main():
 
     torch.save(res, path)
 
+    print(f"Done experiments, saved results in {path}")
+
 
 class AI(interaction_loops.Agent):
     """This is a simple Bayes optimization agent."""

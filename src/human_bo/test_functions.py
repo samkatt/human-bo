@@ -81,8 +81,16 @@ def pick_test_function(func: str, noise: float) -> test_functions.SyntheticTestF
         "Zhou": Zhou(noise_std=noise),
         "Hartmann": test_functions.Hartmann(negate=True, noise_std=noise),
         "Branin": test_functions.Branin(negate=True, noise_std=noise),
-        "Rosenbrock": test_functions.Rosenbrock(
+        "Rosenbrock2D": test_functions.Rosenbrock(
             dim=2, negate=True, bounds=[(-5.0, 5.0), (-5.0, 5.0)], noise_std=noise
+        ),
+        "Ackley1D": test_functions.Ackley(dim=1, noise_std=noise, negate=True),
+        "DixonPrice1D": test_functions.DixonPrice(dim=1, noise_std=noise, negate=True),
+        "Griewank1D": test_functions.Griewank(dim=1, noise_std=noise, negate=True),
+        "Levy1D": test_functions.Levy(dim=1, noise_std=noise, negate=True),
+        "Rastrigin1D": test_functions.Rastrigin(dim=1, noise_std=noise, negate=True),
+        "StyblinskiTang1D": test_functions.StyblinskiTang(
+            dim=1, noise_std=noise, negate=True
         ),
     }
 

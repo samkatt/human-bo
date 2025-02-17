@@ -14,7 +14,14 @@ class Problem(Protocol):
 
 
 class Evaluation(Protocol):
-    def __call__(self, query, feedback) -> tuple[Any, dict[str, Any]]: ...
+    def __call__(
+        self,
+        query,
+        feedback,
+        query_stats: dict[str, Any],
+        feedback_stats: dict[str, Any],
+        **kwargs
+    ) -> tuple[Any, dict[str, Any]]: ...
 
 
 class User(Protocol):
@@ -43,7 +50,9 @@ def basic_interleaving(
         query, query_stats = agent.pick_query()
         feedback, feedback_stats = problem.give_feedback(query)
 
-        evaluation, evaluation_stats = evaluation_function(query, feedback)
+        evaluation, evaluation_stats = evaluation_function(
+            query, feedback, query_stats, feedback_stats
+        )
 
         agent.observe(query, feedback, evaluation)
         problem.observe(query, feedback, evaluation)
@@ -94,13 +103,21 @@ def ai_advices_human_loop(
 
     evaluations: dict[str, Any] = {k: [] for k in evaluation_keys}
 
-    for _ in range(budget):
+    k = 0
+    while k < budget:
 
         ai_query, ai_stats = agent.pick_query()
         user_query, user_stats = user.pick_action(ai_query)
         feedback, feedback_stats = problem.give_feedback(user_query)
 
-        evaluation, evaluation_stats = evaluation_function(ai_query, feedback)
+        evaluation, evaluation_stats = evaluation_function(
+            user_query,
+            feedback,
+            user_stats,
+            feedback_stats,
+            ai_query=ai_query,
+            ai_stats=ai_stats,
+        )
 
         agent.observe(
             ai_query, {"action": user_query, "feedback": feedback}, evaluation
@@ -126,5 +143,7 @@ def ai_advices_human_loop(
             ],
         ):
             evaluations[key].append(val)
+
+        k = k + ai_query.shape[0]
 
     return evaluations

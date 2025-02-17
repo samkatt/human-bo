@@ -141,8 +141,15 @@ class Evaluation(interaction_loops.Evaluation):
         self.step = 0
         self.report_step = report_step
 
-    def __call__(self, query, feedback) -> tuple[Any, dict[str, Any]]:
-        del feedback
+    def __call__(
+        self,
+        query,
+        feedback,
+        query_stats: dict[str, Any],
+        feedback_stats: dict[str, Any],
+        **kwargs,
+    ) -> tuple[Any, dict[str, Any]]:
+        del feedback, query_stats, feedback_stats, kwargs
 
         y_true = self.problem_function(query, noise=False)
 

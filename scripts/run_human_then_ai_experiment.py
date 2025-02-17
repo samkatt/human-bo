@@ -136,8 +136,15 @@ class Evaluation(interaction_loops.Evaluation):
         # To respect this, we keep track of number of queries.
         self.number_of_queries = 0
 
-    def __call__(self, query, feedback) -> tuple[Any, dict[str, Any]]:
-        del feedback
+    def __call__(
+        self,
+        query,
+        feedback,
+        query_stats: dict[str, Any],
+        feedback_stats: dict[str, Any],
+        **kwargs,
+    ) -> tuple[Any, dict[str, Any]]:
+        del feedback, query_stats, feedback_stats
 
         # In this problem, the user is allowed to pick different number of queries.
         # To respect this, we keep track of number of queries.
@@ -148,7 +155,12 @@ class Evaluation(interaction_loops.Evaluation):
         self.y_max = max(self.y_max, y_true.max().item())
         regret = self.problem_function.optimal_value - self.y_max
 
-        evaluation = {"y_true": y_true, "y_max": self.y_max, "regret": regret}
+        evaluation = {
+            "y_true": y_true,
+            "y_max": self.y_max,
+            "regret": regret,
+            "ai_acqf_val": kwargs["ai_stats"]["acqf_value"],
+        }
 
         self.report_step(evaluation, self.number_of_queries)
 

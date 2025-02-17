@@ -38,8 +38,6 @@ def initiate_and_create_wandb_logger(
 
     wandb_conf["dir"] = dir_wandb
 
-    # breakpoint()
-
     wandb.init(config=exp_params, **wandb_conf)
     return lambda step_data, step: wandb.log(step_data, step=step)
 

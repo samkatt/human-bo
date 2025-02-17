@@ -52,6 +52,8 @@ def test_sample_initial_points():
 
     xs, ys = core.sample_initial_points(f, bounds, n_init)
 
+    assert ys.dim() == 1
+
     assert (
         len(xs) == len(ys) == n_init
     ), "`sample_initial_points` Number of x and y samples should be `n_init`."

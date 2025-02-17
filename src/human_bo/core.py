@@ -115,11 +115,13 @@ def fit_gp(x, y, kernel, input_bounds: torch.Tensor | None = None) -> SingleTask
 
     Will normalize input (`x`) and standardize output (`y`).
     """
+    assert y.dim() == 1 and x.dim() == 2
+
     dim = x.shape[-1]
 
     gp = SingleTaskGP(
         x,
-        y,
+        y.unsqueeze(-1),
         covar_module=kernel,
         input_transform=input_transform.Normalize(d=dim, bounds=input_bounds),
         outcome_transform=outcome_transform.Standardize(m=1),
@@ -166,7 +168,10 @@ class PlainBO:
 
         candidates, acqf_val = optimize_acqf(
             acq_function=pick_acqf(
-                self.acqf, outcome_transform.Standardize(m=1)(y)[0], gp, self.bounds
+                self.acqf,
+                outcome_transform.Standardize(m=1)(y.unsqueeze(-1))[0],
+                gp,
+                self.bounds,
             ),
             bounds=self.bounds,
             q=1,  # batch size, i.e. we only query one point

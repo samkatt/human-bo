@@ -1,10 +1,7 @@
 """Test functions that are not implemented in BoTorch."""
 
-from typing import List, Optional, Tuple
-
 import torch
 from botorch import test_functions
-from torch import Tensor, sin
 
 
 class Zhou(test_functions.SyntheticTestFunction):
@@ -14,25 +11,27 @@ class Zhou(test_functions.SyntheticTestFunction):
 
     def __init__(
         self,
-        noise_std: Optional[float] = None,
-        bounds: Optional[List[Tuple[float, float]]] = None,
+        noise_std: float | None = None,
+        bounds: list[tuple[float, float]] | None = None,
     ) -> None:
         r"""
         Args:
             noise_std: Standard deviation of the observation noise.
             bounds: Custom bounds for the function specified as (lower, upper) pairs.
         """
+        # TODO: maybe place this inside class, rather than initializer.
+
         self.dim = 1
         self._bounds = [(-0.0, 1.0) for _ in range(self.dim)]
         self._optimizers = [tuple(1 / 3 for _ in range(self.dim))]
         super().__init__(noise_std=noise_std, bounds=bounds)
 
-    def evaluate_true(self, X: Tensor) -> Tensor:
-        def phi_zou(X: Tensor) -> Tensor:
+    def evaluate_true(self, X: torch.Tensor) -> torch.Tensor:
+        def phi_zou(X: torch.Tensor) -> torch.Tensor:
             return (2 * torch.pi) ** (-0.5) * torch.exp(-0.5 * X**2)
 
-        part1 = 10 * (X - 1 / 3)
-        part2 = 10 * (X - 2 / 3)
+        part1 = 10 * (X[:, 0] - 1 / 3)
+        part2 = 10 * (X[:, 0] - 2 / 3)
         return 5 * (phi_zou(part1) + phi_zou(part2))
 
 
@@ -41,8 +40,8 @@ class Forrester(test_functions.SyntheticTestFunction):
 
     def __init__(
         self,
-        noise_std: Optional[float] = None,
-        bounds: Optional[List[Tuple[float, float]]] = None,
+        noise_std: float | None = None,
+        bounds: list[tuple[float, float]] | None = None,
     ) -> None:
         """Initiates the Forrester function
 
@@ -57,6 +56,8 @@ class Forrester(test_functions.SyntheticTestFunction):
         :noise_std: Standard deviation of the observation noise.
         :bounds: Custom bounds for the function specified as (lower, upper) pairs.
         """
+        # TODO: maybe place this inside class, rather than initializer.
+
         self.dim = 1
         self._bounds = [(-0.0, 1.0) for _ in range(self.dim)]
         self._optimizers = [tuple(1 / 3 for _ in range(self.dim))]
@@ -64,8 +65,8 @@ class Forrester(test_functions.SyntheticTestFunction):
         self._optimal_value = 6.020738786441099
         super().__init__(noise_std=noise_std, bounds=bounds)
 
-    def evaluate_true(self, X: Tensor) -> Tensor:
-        return -((6 * X - 2) ** 2) * sin(12 * X - 4)
+    def evaluate_true(self, X: torch.Tensor) -> torch.Tensor:
+        return -((6 * X[:, 0] - 2) ** 2) * torch.sin(12 * X[:, 0] - 4)
 
 
 def pick_test_function(func: str, noise: float) -> test_functions.SyntheticTestFunction:

@@ -230,7 +230,7 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
 
         acqf = pick_acqf(
             exp_params["acqf"],
-            outcome.Standardize(m=1)(y)[0],
+            outcome.Standardize(m=1)(y.unsqueeze(-1))[0],
             gpr,
             bounds,
         )

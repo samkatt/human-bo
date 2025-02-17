@@ -146,11 +146,7 @@ class Evaluation(interaction_loops.Evaluation):
         feedback_stats: dict[str, Any],
         **kwargs,
     ) -> tuple[Any, dict[str, Any]]:
-        del feedback, query_stats, feedback_stats
-
-        # In this problem, the user is allowed to pick different number of queries.
-        # To respect this, we keep track of number of queries.
-        self.number_of_queries += query.shape[0]
+        del feedback, query_stats
 
         y_true = self.problem_function(query, noise=False)
 
@@ -164,7 +160,14 @@ class Evaluation(interaction_loops.Evaluation):
             "ai_acqf_val": kwargs["ai_stats"]["acqf_value"],
         }
 
+        if "acqf_value" in feedback_stats:
+            evaluation["user_acqf_val"] = feedback_stats["acqf_value"]
+
         self.report_step(evaluation, self.number_of_queries)
+
+        # In this problem, the user is allowed to pick different number of queries.
+        # To respect this, we keep track of number of queries.
+        self.number_of_queries += query.shape[0]
 
         return None, evaluation
 

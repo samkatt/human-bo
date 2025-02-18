@@ -16,44 +16,41 @@ from human_bo import (
     conf,
     core,
     human_feedback_experiments,
+    test_functions,
     utils,
     visualization,
-    test_functions,
 )
 from human_bo.core import pick_acqf
 
 
-def get_x(new_results):
+def get_x(res):
 
     # Expected for simple experiments (i.e. `scripts/run_human_ai_experiment.py`).
-    if "initial_points" in new_results:
-        return torch.cat(
-            list(new_results["initial_points"]["x"].unsqueeze(1)) + new_results["query"]
-        )
+    if "initial_points" in res:
+        return torch.cat(list(res["initial_points"]["x"].unsqueeze(1)) + res["query"])
 
     print("WARN: could not find `initial_points`, so just returning queries")
-    return torch.cat(new_results["query"])
+    return torch.cat(res["query"])
 
 
-def get_y(new_results):
+def get_y(res):
 
     # Expected for simple experiments (i.e. `scripts/run_human_ai_experiment.py`).
-    if "initial_points" in new_results:
+    if "initial_points" in res:
         return torch.cat(
-            list(new_results["initial_points"]["y"].unsqueeze(0))
-            + new_results["feedback"]
+            list(res["initial_points"]["y"].unsqueeze(0)) + res["feedback"]
         )
 
     print("WARN: could not find `initial_points`, so just returning feedback")
-    return torch.cat(new_results["feedback"])
+    return torch.cat(res["feedback"])
 
 
-def get_regrets(new_results):
-    return torch.Tensor([x["regret"] for x in new_results["evaluation_stats"]])
+def get_regrets(res):
+    return torch.Tensor([x["regret"] for x in res["evaluation_stats"]])
 
 
-def get_y_max(new_results):
-    return torch.Tensor([x["y_max"] for x in new_results["evaluation_stats"]])
+def get_y_max(res):
+    return torch.Tensor([x["y_max"] for x in res["evaluation_stats"]])
 
 
 def compare_regrets_over_time(files: list[str]) -> None:
@@ -154,49 +151,205 @@ def compare_regrets_over_time(files: list[str]) -> None:
     plt.show()
 
 
-def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
+def visualize_trajectory_2D(result_file_content) -> None:
     """Visualizes the end result (approximation, sample data, etc)
 
     :file: file path (string)
     :returns: None
     """
 
-    # Pre-compute some constants
-    candidate_test_functions = [
-        f
-        for f, c in conf.CONFIG["problem"]["parser-arguments"]["choices"].items()
-        if c["dims"] == 1
-    ]
+    # Load configurations and results.
+    exp_params = result_file_content["conf"]
+    budget, n_init = exp_params["budget"], exp_params["n_init"]
+    problem = test_functions.pick_test_function(exp_params["problem"], noise=0.0)
 
-    # Load the file.
-    new_results = torch.load(file, weights_only=True)
-    exp_params = new_results["conf"]
+    # Pre-compute global variables.
+    bounds = problem.bounds
+    x1_min, x1_max, x2_min, x2_max = bounds.T.flatten()
+    x1 = torch.linspace(x1_min, x1_max, 100)
+    x2 = torch.linspace(x2_min, x2_max, 100)
+    X1, X2 = torch.meshgrid(x1, x2, indexing="xy")
+    X = torch.stack((X1, X2), dim=2)
+    Y = problem(torch.stack((X1, X2), dim=2))
 
-    if exp_params["problem"] not in candidate_test_functions:
-        raise ValueError(
-            f"{file} is not an 1-dimensional experiment (in {candidate_test_functions}) and thus is excluded"
+    queries, observations = get_x(result_file_content), get_y(result_file_content)
+
+    # Generate results for each step.
+    results = []
+    for b in range(budget + 1):
+
+        x, y = queries[: n_init + b], observations[: n_init + b]
+
+        if len(x) == 0:
+            assert n_init == 0 and b == 0
+            # Weird corner case: there is nothing to plot
+            results.append(
+                {
+                    "gpr_post_mean": torch.zeros_like(Y),
+                    "gpr_post_mean_dist": torch.zeros_like(Y),
+                    "gpr_post_var": torch.zeros_like(Y),
+                    "x": x,
+                    "y": y,
+                    "acqf": torch.zeros_like(Y),
+                }
+            )
+
+            continue
+
+        gpr = core.fit_gp(
+            x, y, core.pick_kernel(exp_params["kernel"], 1), input_bounds=bounds
         )
 
+        posteriors = gpr.posterior(X)
+        gpr_post_mean = posteriors.mean.squeeze()
+        gpr_post_var = posteriors.variance.squeeze()
+
+        acqf = pick_acqf(
+            exp_params["acqf"],
+            outcome.Standardize(m=1)(y.unsqueeze(-1))[0],
+            gpr,
+            bounds,
+        )
+        acqf_eval = acqf(X.reshape(-1, 2)[:, None, :]).reshape(gpr_post_mean.shape)
+
+        results.append(
+            {
+                "gpr_post_mean": gpr_post_mean.detach().numpy(),
+                "gpr_post_mean_dist": (gpr_post_mean - Y).detach().numpy(),
+                "gpr_post_var": gpr_post_var.detach().numpy(),
+                "x": x,
+                "y": y,
+                "acqf": acqf_eval.detach().numpy(),
+            }
+        )
+
+    # Setup figures
+    fig = plt.figure(figsize=(10, 8))
+    surface_kwargs = {"rcount": 3, "ccount": 3, "lw": 0.5, "alpha": 0.3}
+    contour_vals = {
+        "var": "gpr_post_var",
+        "mean_dist": "gpr_post_mean_dist",
+        "acqf": "acqf",
+    }
+    axs = {
+        "var": fig.add_subplot(2, 2, 1),
+        "mean_dist": fig.add_subplot(2, 2, 2),
+        "acqf": fig.add_subplot(2, 2, 3),
+        "ax_3d": fig.add_subplot(2, 2, 4, projection="3d"),
+    }
+    contours = {
+        k: axs[k].contourf(x1, x2, results[-1][v], cmap="binary")
+        for k, v in contour_vals.items()
+    }
+    cbars = {k: plt.colorbar(contours[k]) for k in contour_vals}
+
+    for k, ax in axs.items():
+        ax.set_title(k)
+
+    def draw_results(slider_input: float) -> int:
+        """Draw results for budget=slider_input"""
+        b = int(slider_input)
+
+        r = results[b]
+        x, y = r["x"], r["y"]
+
+        for k, r_key in contour_vals.items():
+            axs[k].contourf(x1, x2, r[r_key], cmap="binary")
+            cbars[k].set_ticklabels(
+                [
+                    f"{number:.2f}"
+                    for number in torch.linspace(
+                        r[r_key].min(), r[r_key].max(), len(cbars[k].get_ticks())
+                    ).tolist()
+                ]
+            )
+
+            axs[k].scatter(x[:, 0], x[:, 1], color="green")
+
+        axs["ax_3d"].clear()
+
+        axs["ax_3d"].plot_surface(  # type: ignore
+            X1.numpy(),
+            X2.numpy(),
+            Y.numpy(),
+            color="green",
+            edgecolor="green",
+            label="f(x)",
+            **surface_kwargs,
+        )
+
+        axs["ax_3d"].plot_surface(  # type: ignore
+            X1.numpy(),
+            X2.numpy(),
+            r["gpr_post_mean"],
+            color="blue",
+            edgecolor="blue",
+            label="GP mean",
+            **surface_kwargs,
+        )
+        axs["ax_3d"].scatter(x[:, 0], x[:, 1], y, color="black")
+
+        if b < budget:
+            [next_x_1, next_x_2], next_y = queries[n_init + b], observations[n_init + b]
+
+            for k in contour_vals:
+                axs[k].scatter(next_x_1, next_x_2, color="orange")
+
+            axs["ax_3d"].scatter(
+                next_x_1, next_x_2, next_y, color="orange", label="next"
+            )
+
+        axs["ax_3d"].legend()
+        fig.canvas.draw_idle()
+
+        return 0
+
+    fig.subplots_adjust(bottom=0.2)
+    ax_budget = fig.add_axes((0.2, 0.05, 0.6, 0.03))
+
+    slider_budget = Slider(
+        ax_budget,
+        "b",
+        0,
+        budget,
+        valinit=budget,
+        valstep=list(range(budget + 1)),
+    )
+
+    slider_budget.on_changed(draw_results)
+
+    draw_results(budget)
+    plt.show()
+
+
+def visualize_trajectory_1D(results) -> None:
+    """Visualizes the end result (approximation, sample data, etc)
+
+    :file: file path (string)
+    :returns: None
+    """
+
     # Load configurations and results.
+    exp_params = results["conf"]
     budget, n_init = exp_params["budget"], exp_params["n_init"]
     problem = test_functions.pick_test_function(exp_params["problem"], noise=0.0)
 
     bounds = torch.tensor(problem._bounds).T
-    x_min, x_max = problem._bounds[0]
+    x_min, x_max = bounds.squeeze().tolist()
     x_linspace = torch.linspace(x_min, x_max, 101).reshape(-1, 1)
     y_truth = problem(x_linspace)
-    queries, observations = get_x(new_results), get_y(new_results)
+    queries, observations = get_x(results), get_y(results)
 
     # Get "global" (across all time steps) values.
-    optimal_xs = conf.CONFIG["problem"]["parser-arguments"]["choices"][
-        exp_params["problem"]
-    ]["optimal_x"]
-    user_models = [
-        human_feedback_experiments.pick_user_model(
-            exp_params["user_model"], optimal_x, problem
-        )(x_linspace, y_truth)
-        for optimal_x in optimal_xs
-    ]
+    # optimal_xs = conf.CONFIG["problem"]["parser-arguments"]["choices"][
+    #     exp_params["problem"]
+    # ]["optimal_x"]
+    # user_models = [
+    #     human_feedback_experiments.pick_user_model(
+    #         exp_params["user_model"], optimal_x, problem
+    #     )(x_linspace, y_truth)
+    #     for optimal_x in optimal_xs
+    # ]
 
     # Process results for each "time step"
     results = []
@@ -267,9 +420,8 @@ def visualize_trajectory(file: str, *, plot_user_model=True) -> None:
         )
 
         # Plot global
-        if plot_user_model:
-            for user_model in user_models:
-                ax.plot(x_linspace, user_model, "g", label="User model")
+        # for user_model in user_models:
+        #     ax.plot(x_linspace, user_model, "g", label="User model")
 
         ax.plot(x_linspace, y_truth, label="Ground Truth")
 
@@ -353,9 +505,9 @@ if __name__ == "__main__":
         help="All files that need to be processed.",
     )
     parser.add_argument(
-        "--plot-user-model",
-        type=bool,
-        help="Whether to display user model when plotting type=trajectory.",
+        "--budget",
+        type=int,
+        help="For which budget to plot",
         default=True,
         action=argparse.BooleanOptionalAction,
     )
@@ -373,4 +525,17 @@ if __name__ == "__main__":
         if len(args.files) != 1:
             raise ValueError("Please only provide 1 file when plotting trajectory")
 
-        visualize_trajectory(args.files[0], plot_user_model=args.plot_user_model)
+        file_content = torch.load(args.files[0], weights_only=True)
+
+        dim_test_func = conf.CONFIG["problem"]["parser-arguments"]["choices"][
+            file_content["conf"]["problem"]
+        ]["dims"]
+
+        if dim_test_func == 1:
+            visualize_trajectory_1D(file_content)
+        elif dim_test_func == 2:
+            visualize_trajectory_2D(file_content)
+        else:
+            raise ValueError(
+                f"Experiment on {file_content['conf']['problem']} is too high-dimensional ({dim_test_func}) to visualize"
+            )

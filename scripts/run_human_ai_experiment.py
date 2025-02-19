@@ -164,8 +164,8 @@ class Evaluation(interaction_loops.Evaluation):
             "feedback_stats": feedback_stats,
         }
 
-        self.report_step(evaluation, self.step)
         self.step += 1
+        self.report_step(evaluation, self.step)
 
         return None, evaluation
 

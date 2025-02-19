@@ -164,11 +164,11 @@ class Evaluation(interaction_loops.Evaluation):
         if "acqf_value" in feedback_stats:
             evaluation["user_acqf_val"] = feedback_stats["acqf_value"]
 
-        self.report_step(evaluation, self.number_of_queries)
-
         # In this problem, the user is allowed to pick different number of queries.
         # To respect this, we keep track of number of queries.
         self.number_of_queries += query.shape[0]
+
+        self.report_step(evaluation, self.number_of_queries)
 
         return None, evaluation
 

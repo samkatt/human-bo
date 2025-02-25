@@ -10,10 +10,10 @@ import torch
 from human_bo import (
     conf,
     core,
-    test_functions,
     human_feedback_experiments,
     interaction_loops,
     reporting,
+    test_functions,
     utils,
 )
 
@@ -36,21 +36,20 @@ def main():
         )
 
     parser.add_argument(
-        "-f", "--save_path", help="Name of saving directory.", type=str, required=True
+        "-f", "--save_dir", help="Name of saving directory.", type=str, required=True
     )
     parser.add_argument("--wandb", help="Wandb configuration file.", type=str)
-    args = parser.parse_args()
-    exp_params = conf.from_ns(args)
+    exp_params = vars(parser.parse_args())
 
     experiment_name = "_".join(
         conf.get_values_with_tag(exp_params, "experiment-parameter", exp_conf)
         + [str(exp_params["seed"])]
     )
 
-    path = args.save_path + "/" + experiment_name + ".pt"
+    path = exp_params["save_dir"] + "/" + experiment_name + ".pt"
 
     utils.exit_if_exists(path)
-    utils.create_directory_if_does_not_exist(args.save_path)
+    utils.create_directory_if_does_not_exist(exp_params["save_dir"])
 
     torch.manual_seed(exp_params["seed"])
 
@@ -59,8 +58,10 @@ def main():
         exp_params["problem"], exp_params["problem_noise"]
     )
     report_step = (
-        reporting.initiate_and_create_wandb_logger(args.wandb, exp_params, exp_conf)
-        if args.wandb
+        reporting.initiate_and_create_wandb_logger(
+            exp_params["wandb"], exp_params, exp_conf
+        )
+        if exp_params["wandb"]
         else reporting.print_dot
     )
     evaluation = Evaluation(problem_function, report_step)
@@ -135,7 +136,7 @@ class Human(interaction_loops.Problem):
 
 
 class Evaluation(interaction_loops.Evaluation):
-    def __init__(self, problem_function, report_step):
+    def __init__(self, problem_function, report_step: reporting.StepReport):
         self.problem_function = problem_function
         self.y_max = -torch.inf
         self.step = 0

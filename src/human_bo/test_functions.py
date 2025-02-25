@@ -2,6 +2,7 @@
 
 import torch
 from botorch import test_functions
+from botorch.test_functions import base
 
 
 class Zhou(test_functions.SyntheticTestFunction):
@@ -98,5 +99,26 @@ def pick_test_function(func: str, noise: float) -> test_functions.SyntheticTestF
         return test_function_mapping[func]
     except KeyError as error:
         raise KeyError(
-            f"{func} is not an accepted test function (not in {test_function_mapping.keys()})"
+            f"{func} is not an accepted (single objective) test function (not in {test_function_mapping.keys()})"
+        ) from error
+
+
+def pick_moo_test_function(
+    func: str, noise: list[float] | None
+) -> base.MultiObjectiveTestProblem:
+    """Instantiate the given multi-objective function to optimize.
+
+    :func: string description of the test function to return
+    :noise: standard deviations of the noise, None means no noise.
+    """
+
+    test_function_mapping: dict[str, base.MultiObjectiveTestProblem] = {
+        "BraninCurrin": test_functions.BraninCurrin(noise_std=noise),
+    }
+
+    try:
+        return test_function_mapping[func]
+    except KeyError as error:
+        raise KeyError(
+            f"{func} is not an accepted MOO test function (not in {test_function_mapping.keys()})"
         ) from error

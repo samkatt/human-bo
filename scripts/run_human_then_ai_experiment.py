@@ -29,22 +29,21 @@ def main():
         )
 
     parser.add_argument(
-        "-f", "--save_path", help="Name of saving directory.", type=str, required=True
+        "-f", "--save_dir", help="Name of saving directory.", type=str, required=True
     )
     parser.add_argument("--wandb", help="Wandb configuration file.", type=str)
 
-    args = parser.parse_args()
-    exp_params = conf.from_ns(args)
+    exp_params = vars(parser.parse_args())
 
     experiment_name = "_".join(
         conf.get_values_with_tag(exp_params, "experiment-parameter", exp_conf)
         + [str(exp_params["seed"])]
     )
 
-    path = args.save_path + "/" + experiment_name + ".pt"
+    path = exp_params["save_dir"] + "/" + experiment_name + ".pt"
 
     utils.exit_if_exists(path)
-    utils.create_directory_if_does_not_exist(args.save_path)
+    utils.create_directory_if_does_not_exist(exp_params["save_dir"])
 
     res: dict[str, Any] = {"conf": exp_params}
 
@@ -57,8 +56,10 @@ def main():
     problem = Problem(f)
 
     report_step = (
-        reporting.initiate_and_create_wandb_logger(args.wandb, exp_params, exp_conf)
-        if args.wandb
+        reporting.initiate_and_create_wandb_logger(
+            exp_params["wandb"], exp_params, exp_conf
+        )
+        if exp_params["wandb"]
         else reporting.print_dot
     )
     evaluation = Evaluation(f, report_step)
@@ -70,7 +71,7 @@ def main():
     agent = AI(
         f._bounds, exp_params["kernel"], exp_params["acqf"], x_init_ai, y_init_ai
     )
-    res["ai_conf"] = {"x": x_init_ai, "y": y_init_ai}
+    res["ai_conf"] = {"initial_points": {"x": x_init_ai, "y": y_init_ai}}
 
     user, user_conf = human_suggests_second.create_user(
         exp_params["user_model"],
@@ -130,7 +131,7 @@ class Problem(interaction_loops.Problem):
 class Evaluation(interaction_loops.Evaluation):
     """Evaluates the true value of query and tracks regret and max y."""
 
-    def __init__(self, problem_function, report_step):
+    def __init__(self, problem_function, report_step: reporting.StepReport):
         self.problem_function = problem_function
         self.y_max = -torch.inf
         self.report_step = report_step

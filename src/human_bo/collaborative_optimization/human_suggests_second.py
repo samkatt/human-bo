@@ -74,7 +74,7 @@ def create_user(
                 acqf,
                 x_init,
                 y_init,
-            ), {"x_init": x_init, "y_init": y_init}
+            ), {"initial_points": {"x": x_init, "y": y_init}}
         case "noop":
             return NoopUser(), {}
 

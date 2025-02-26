@@ -71,7 +71,7 @@ def main():
         problem_function, problem_function._bounds, exp_params["n_init"]
     )
 
-    ai = AI(
+    ai = core.BO_Agent(
         problem_function._bounds,
         exp_params["kernel"],
         exp_params["acqf"],
@@ -94,24 +94,6 @@ def main():
     torch.save(res, path)
 
     print(f"Done experiments, saved results in {path}")
-
-
-class AI(interaction_loops.Agent):
-    """Simple Bayes optimization Agent"""
-
-    def __init__(self, bounds, kernel, acqf, x_init, y_init):
-        self.bo = core.PlainBO(kernel, acqf, bounds)
-        self.x, self.y = x_init, y_init
-
-    def pick_query(self) -> tuple[Any, dict[str, Any]]:
-        query, val = self.bo.pick_queries(self.x, self.y)
-        return query, {"acqf_value": val}
-
-    def observe(self, query, feedback, evaluation) -> None:
-        del evaluation
-
-        self.x = torch.cat((self.x, query))
-        self.y = torch.cat((self.y, feedback))
 
 
 class Human(interaction_loops.Problem):

@@ -9,7 +9,7 @@ from botorch.posteriors import posterior
 from botorch.posteriors import torch as torch_posterior
 from torch import distributions
 
-from human_bo import interaction_loops, reporting
+from human_bo import core, interaction_loops, reporting
 
 CONFIG = {
     "preference_weights": {
@@ -18,13 +18,24 @@ CONFIG = {
         "help": "List of weights representing user objective preferences, must sum to one!",
         "tags": {""},
         "parser-arguments": {"nargs": "+"},
-    }
+    },
+    "algorithm": {
+        "type": str,
+        "shorthand": "x",
+        "help": "Implementation of the AI agent.",
+        "tags": {"experiment-parameter"},
+        "parser-arguments": {
+            "required": True,
+            "choices": {"random", "bo"},
+        },
+    },
 }
 
 type UtilityFunction = Callable[[torch.Tensor], torch.Tensor]
 
 
 def create_utility_function(w: list[float]) -> UtilityFunction:
+    """Currently just a simple function that creates a `LinearMCObjective` from botorch."""
     return objective.LinearMCObjective(torch.Tensor(w))
 
 
@@ -125,3 +136,24 @@ class ObjectiveFunctionModel(botorch_model.Model):
             ret = posterior_transform(ret)
 
         return ret
+
+
+def create_AI(
+    moo_function,
+    algorithm: str,
+    kernel: str,
+    acqf: str,
+) -> interaction_loops.Agent:
+    ai_mapping: dict[str, interaction_loops.Agent] = {
+        "random": core.RandomAgent(moo_function.bounds),
+        "bo": core.BO_Agent(
+            moo_function._bounds, kernel, acqf, torch.Tensor(), torch.Tensor()
+        ),
+    }
+
+    try:
+        return ai_mapping[algorithm]
+    except KeyError as error:
+        raise ValueError(
+            f"{algorithm} not accepted algorithm (not in {ai_mapping.keys()})"
+        ) from error

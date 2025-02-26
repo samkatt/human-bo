@@ -15,6 +15,26 @@ from gpytorch.mlls import ExactMarginalLogLikelihood
 from human_bo import interaction_loops
 
 
+class BO_Agent(interaction_loops.Agent):
+    """Simple Bayes optimization Agent"""
+
+    def __init__(
+        self, bounds, kernel: str, acqf: str, x_init: torch.Tensor, y_init: torch.Tensor
+    ):
+        self.bo = PlainBO(kernel, acqf, bounds)
+        self.x, self.y = x_init, y_init
+
+    def pick_query(self) -> tuple[Any, dict[str, Any]]:
+        query, val = self.bo.pick_queries(self.x, self.y)
+        return query, {"acqf_value": val}
+
+    def observe(self, query, feedback, evaluation) -> None:
+        del evaluation
+
+        self.x = torch.cat((self.x, query))
+        self.y = torch.cat((self.y, feedback))
+
+
 def pick_acqf(
     acqf: str, y: torch.Tensor, gpr: SingleTaskGP, bounds: torch.Tensor
 ) -> analytic.AcquisitionFunction:

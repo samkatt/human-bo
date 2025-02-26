@@ -61,9 +61,7 @@ class GaussianUserModel:
         return torch.exp(self.gauss.log_prob(x)) * self.y_multiplier
 
 
-def pick_user(
-    u, optimal_x: list[float], problem: SyntheticTestFunction
-) -> UserModel:
+def pick_user(u, optimal_x: list[float], problem: SyntheticTestFunction) -> UserModel:
     """Instantiates the `UserModel` described by `u`
 
     :optimal_x: optimal x values

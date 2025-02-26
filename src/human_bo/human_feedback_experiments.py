@@ -7,7 +7,7 @@ from botorch.test_functions import SyntheticTestFunction
 from torch import distributions
 
 CONFIG = {
-    "user_model": {
+    "user": {
         "type": str,
         "shorthand": "u",
         "help": "The mechanism through which queries are given.",
@@ -61,7 +61,7 @@ class GaussianUserModel:
         return torch.exp(self.gauss.log_prob(x)) * self.y_multiplier
 
 
-def pick_user_model(
+def pick_user(
     u, optimal_x: list[float], problem: SyntheticTestFunction
 ) -> UserModel:
     """Instantiates the `UserModel` described by `u`
@@ -69,7 +69,7 @@ def pick_user_model(
     :optimal_x: optimal x values
     :problem: The underlying function to optimize for
     """
-    user_model_mapping: dict[str, UserModel] = {
+    user_mapping: dict[str, UserModel] = {
         "oracle": oracle,
         "gauss": GaussianUserModel(
             optimal_x,
@@ -78,8 +78,8 @@ def pick_user_model(
     }
 
     try:
-        return user_model_mapping[u]
+        return user_mapping[u]
     except KeyError as error:
         raise KeyError(
-            f"{u} is not an accepted user model (not in {user_model_mapping.keys()})"
+            f"{u} is not an accepted user model (not in {user_mapping.keys()})"
         ) from error

@@ -27,9 +27,9 @@ def get_init_points(res):
         x = torch.cat((x, res["ai_conf"]["initial_points"]["x"]))
         y = torch.cat((y, res["ai_conf"]["initial_points"]["y"]))
 
-    if "user_model_conf" in res and "initial_points" in res["user_model_conf"]:
-        x = torch.cat((x, res["user_model_conf"]["initial_points"]["x"]))
-        y = torch.cat((y, res["user_model_conf"]["initial_points"]["y"]))
+    if "user_conf" in res and "initial_points" in res["user_model_conf"]:
+        x = torch.cat((x, res["user_conf"]["initial_points"]["x"]))
+        y = torch.cat((y, res["user_conf"]["initial_points"]["y"]))
 
     return x, y
 

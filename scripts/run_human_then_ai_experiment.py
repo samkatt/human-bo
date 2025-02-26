@@ -74,13 +74,13 @@ def main():
     res["ai_conf"] = {"initial_points": {"x": x_init_ai, "y": y_init_ai}}
 
     user, user_conf = human_suggests_second.create_user(
-        exp_params["user_model"],
+        exp_params["user"],
         f,
         exp_params["kernel"],
         exp_params["acqf"],
         exp_params["n_init"],
     )
-    res["user_model_conf"] = user_conf
+    res["user_conf"] = user_conf
 
     # Run actual experiment.
     print(f"Running experiment for {path}")

@@ -14,7 +14,7 @@ import torch
 from human_bo import core, interaction_loops
 
 CONFIG = {
-    "user_model": {
+    "user": {
         "type": str,
         "shorthand": "u",
         "help": "The (real) user behavior.",

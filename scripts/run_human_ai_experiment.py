@@ -79,7 +79,7 @@ def main():
         y_init,
     )
     human = Human(
-        exp_params["user_model"],
+        exp_params["user"],
         conf.CONFIG["problem"]["parser-arguments"]["choices"][exp_params["problem"]][
             "optimal_x"
         ],
@@ -117,10 +117,10 @@ class AI(interaction_loops.Agent):
 class Human(interaction_loops.Problem):
     """The 'problem' in BO, represented by (optional) user model."""
 
-    def __init__(self, user_model, x_optimal, problem_function):
+    def __init__(self, user, x_optimal, problem_function):
         self.problem_function = problem_function
-        self.user = human_feedback_experiments.pick_user_model(
-            user_model,
+        self.user = human_feedback_experiments.pick_user(
+            user,
             x_optimal[torch.randint(0, len(x_optimal), size=(1,))],
             problem_function,
         )

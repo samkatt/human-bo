@@ -51,3 +51,7 @@ def exit_if_exists(path: str, negate=False):
     if os.path.exists(path) is not negate:
         msg = "does not exist" if negate else "already exists"
         raise ValueError(f"File {path} {msg}, aborting run!")
+
+
+def create_directory_if_does_not_exist(path: str):
+    os.makedirs(path, exist_ok=True)

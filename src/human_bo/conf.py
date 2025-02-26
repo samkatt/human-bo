@@ -1,7 +1,6 @@
 """Contains data and functions for handling experiment configurations"""
 
 import math
-from argparse import Namespace
 from typing import Any
 
 CONFIG: dict[str, dict[str, Any]] = {
@@ -49,6 +48,12 @@ CONFIG: dict[str, dict[str, Any]] = {
             "required": True,
             "choices": {
                 "Zhou": {"dims": 1, "optimal_x": [[0.34], [0.68]]},
+                "Ackley1D": {"dims": 1, "optimal_x": [[0.0]]},
+                "DixonPrice1D": {"dims": 1, "optimal_x": [[0.0]]},
+                "Griewank1D": {"dims": 1, "optimal_x": [[0.0]]},
+                "Levy1D": {"dims": 1, "optimal_x": [[1.0]]},
+                "Rastrigin1D": {"dims": 1, "optimal_x": [[0.0]]},
+                "StyblinskiTang1D": {"dims": 1, "optimal_x": [[-39.166166]]},
                 "Forrester": {"dims": 1, "optimal_x": [[1.0]]},
                 "Hartmann": {
                     "dims": 6,
@@ -64,7 +69,8 @@ CONFIG: dict[str, dict[str, Any]] = {
                         [9.42478, 2.475],
                     ],
                 },
-                "Rosenbrock": {"dims": "n", "optimal_x": [[1.0, 1.0]]},
+                "Rosenbrock2D": {"dims": 2, "optimal_x": [[1.0, 1.0]]},
+                "BraninCurrin": {"dims": 2, "num_objectives": 2},
             },
         },
     },
@@ -78,17 +84,16 @@ CONFIG: dict[str, dict[str, Any]] = {
 }
 
 
-def from_ns(ns: Namespace) -> dict[str, Any]:
-    """Generates a configuration dictionary from a (arg parse) name space
-
-    See `CONFIG` for the building block: we simply return a `dict[str, value]` of them.
-    """
-    ns_dict = vars(ns)
-
-    conf = {}
-    for k, v in CONFIG.items():
-        # v["type"] returns class (e.g. `int`).
-        # We use that to cast it to the correct value
-        conf[k] = v["type"](ns_dict[k])
-
-    return conf
+def get_values_with_tag(
+    exp_params: dict[str, Any],
+    tag: str,
+    exp_conf: dict[str, dict[str, Any]] | None = None,
+) -> list[str]:
+    """Returns values in `exp_params` of entries with keys that have `tag` in `exp_conf"""
+    if exp_conf is None:
+        exp_conf = CONFIG
+    return [
+        str(v)
+        for k, v in exp_params.items()
+        if k in exp_conf and tag in exp_conf[k]["tags"]
+    ]

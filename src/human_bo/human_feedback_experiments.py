@@ -7,7 +7,7 @@ from botorch.test_functions import SyntheticTestFunction
 from torch import distributions
 
 CONFIG = {
-    "user_model": {
+    "user": {
         "type": str,
         "shorthand": "u",
         "help": "The mechanism through which queries are given.",
@@ -20,8 +20,9 @@ CONFIG = {
 type UserModel = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
 
 
-def oracle(_x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+def oracle(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     """Returns `y` unmodified (implementation of `UserModel`)"""
+    del x
     return y
 
 
@@ -50,24 +51,23 @@ class GaussianUserModel:
                 torch.tensor(optimal_x), torch.diag(torch.tensor(sigma))
             )
 
-    def __call__(self, x: torch.Tensor, _y: torch.Tensor) -> torch.Tensor:
+    def __call__(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Returns `Normal(x)`
 
         :x: the input value to our Gaussian
-        :_y: ignored
+        :y: ignored
         """
+        del y
         return torch.exp(self.gauss.log_prob(x)) * self.y_multiplier
 
 
-def pick_user_model(
-    u, optimal_x: list[float], problem: SyntheticTestFunction
-) -> UserModel:
+def pick_user(u, optimal_x: list[float], problem: SyntheticTestFunction) -> UserModel:
     """Instantiates the `UserModel` described by `u`
 
     :optimal_x: optimal x values
     :problem: The underlying function to optimize for
     """
-    user_model_mapping: dict[str, UserModel] = {
+    user_mapping: dict[str, UserModel] = {
         "oracle": oracle,
         "gauss": GaussianUserModel(
             optimal_x,
@@ -76,8 +76,8 @@ def pick_user_model(
     }
 
     try:
-        return user_model_mapping[u]
+        return user_mapping[u]
     except KeyError as error:
         raise KeyError(
-            f"{u} is not an accepted user model (not in {user_model_mapping.keys()})"
+            f"{u} is not an accepted user model (not in {user_mapping.keys()})"
         ) from error

@@ -73,7 +73,10 @@ class MOOEvaluation(interaction_loops.Evaluation):
         evaluation = {
             "utility_true": utility_true,
             "y_max": self.u_max,
-            "objectives_true": objectives_true,
+            "objectives_true": {
+                f"query {i}": {f"obj {j}": o for j, o in enumerate(v)}
+                for i, v in enumerate(objectives_true)
+            },
             "query_stats": query_stats,
             "feedback_stats": feedback_stats,
         }
@@ -95,7 +98,12 @@ class MOOProblem(interaction_loops.Problem):
         objectives = self.moo_function(query)
         utility = self.utility_function(objectives)
 
-        return utility, {"objectives": objectives}
+        return utility, {
+            "objectives": {
+                f"query {i}": {f"obj {j}": o for j, o in enumerate(v)}
+                for i, v in enumerate(objectives)
+            }
+        }
 
     def observe(self, query, feedback, evaluation) -> None:
         del query, feedback, evaluation

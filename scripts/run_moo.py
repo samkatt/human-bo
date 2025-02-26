@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """Entry-point for subjective multi-objective optimization."""
 
 import argparse

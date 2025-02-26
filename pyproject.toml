@@ -18,6 +18,7 @@ dependencies = [
 script-files = [
   "scripts/run_human_ai_experiment.py",
   "scripts/run_human_then_ai_experiment.py",
+  "scripts/run_moo.py",
 ]
 
 [project.optional-dependencies]

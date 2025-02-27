@@ -8,24 +8,10 @@ from botorch.test_functions import base
 class Zhou(test_functions.SyntheticTestFunction):
     """The Zhou (1-dimensional) function (https://www.sfu.ca/~ssurjano/zhou98.html)"""
 
+    dim = 1
+    _bounds = [(-0.0, 1.0)]
+    _optimizers = [tuple([1 / 3]), tuple([2 / 3])]
     _optimal_value = 2.002595246981888
-
-    def __init__(
-        self,
-        noise_std: float | None = None,
-        bounds: list[tuple[float, float]] | None = None,
-    ) -> None:
-        r"""
-        Args:
-            noise_std: Standard deviation of the observation noise.
-            bounds: Custom bounds for the function specified as (lower, upper) pairs.
-        """
-        # TODO: maybe place this inside class, rather than initializer.
-
-        self.dim = 1
-        self._bounds = [(-0.0, 1.0) for _ in range(self.dim)]
-        self._optimizers = [tuple(1 / 3 for _ in range(self.dim))]
-        super().__init__(noise_std=noise_std, bounds=bounds)
 
     def evaluate_true(self, X: torch.Tensor) -> torch.Tensor:
         def phi_zou(X: torch.Tensor) -> torch.Tensor:
@@ -39,32 +25,10 @@ class Zhou(test_functions.SyntheticTestFunction):
 class Forrester(test_functions.SyntheticTestFunction):
     """The Forrester (1-dimensional) function (https://www.sfu.ca/~ssurjano/forretal08.html)"""
 
-    def __init__(
-        self,
-        noise_std: float | None = None,
-        bounds: list[tuple[float, float]] | None = None,
-    ) -> None:
-        """Initiates the Forrester function
-
-        Forrester, A., Sobester, A., & Keane, A. (2008).
-        Engineering design via surrogate modelling: a practical guide. Wiley.
-
-        The actual function is:
-            `f(x) = (6x - 2)^2 * sin(12x - 4)`
-
-        I am negating this by nature, so returning `- f(x)`
-
-        :noise_std: Standard deviation of the observation noise.
-        :bounds: Custom bounds for the function specified as (lower, upper) pairs.
-        """
-        # TODO: maybe place this inside class, rather than initializer.
-
-        self.dim = 1
-        self._bounds = [(-0.0, 1.0) for _ in range(self.dim)]
-        self._optimizers = [tuple(1 / 3 for _ in range(self.dim))]
-
-        self._optimal_value = 6.020738786441099
-        super().__init__(noise_std=noise_std, bounds=bounds)
+    dim = 1
+    _bounds = [(-0.0, 1.0)]
+    _optimizers = [tuple([0.7572])]
+    _optimal_value = 6.020738786441099
 
     def evaluate_true(self, X: torch.Tensor) -> torch.Tensor:
         return -((6 * X[:, 0] - 2) ** 2) * torch.sin(12 * X[:, 0] - 4)

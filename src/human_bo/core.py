@@ -5,7 +5,7 @@ from typing import Any, Callable
 import torch
 from botorch.acquisition import analytic, qMaxValueEntropy
 from botorch.fit import fit_gpytorch_mll
-from botorch.models import SingleTaskGP
+from botorch.models import SingleTaskGP, model
 from botorch.models.transforms import input as input_transform
 from botorch.models.transforms import outcome as outcome_transform
 from botorch.optim import optimize_acqf
@@ -15,34 +15,15 @@ from gpytorch.mlls import ExactMarginalLogLikelihood
 from human_bo import interaction_loops
 
 
-class BO_Agent(interaction_loops.Agent):
-    """Simple Bayes optimization Agent"""
-
-    def __init__(
-        self, bounds, kernel: str, acqf: str, x_init: torch.Tensor, y_init: torch.Tensor
-    ):
-        self.bo = PlainBO(kernel, acqf, bounds)
-        self.x, self.y = x_init, y_init
-
-    def pick_query(self) -> tuple[Any, dict[str, Any]]:
-        query, val = self.bo.pick_queries(self.x, self.y)
-        return query, {"acqf_value": val}
-
-    def observe(self, query, feedback, evaluation) -> None:
-        del evaluation
-
-        self.x = torch.cat((self.x, query))
-        self.y = torch.cat((self.y, feedback))
-
-
+# TODO: rename to `create_acqf`?
 def pick_acqf(
-    acqf: str, y: torch.Tensor, gpr: SingleTaskGP, bounds: torch.Tensor
+    acqf: str, y: torch.Tensor, botorch_model: model.Model, bounds: torch.Tensor
 ) -> analytic.AcquisitionFunction:
     """Instantiate the given acqf.
 
     :acqf: string representation of the acquisition function to pick
     :y: initial y values (probably to compute the max)
-    :gpr: the GP used by the acquisition function
+    :botorch_model: the model (GP) used by the acquisition function
     :bounds: [x,y] bounds on the function
     """
 
@@ -50,12 +31,13 @@ def pick_acqf(
     mes_n_candidates = 100  # size of candidate set to approximate MES
     mes_candidate_set = torch.rand(mes_n_candidates, bounds.size(1))
     mes_candidate_set = bounds[0] + (bounds[1] - bounds[0]) * mes_candidate_set
-    mes = qMaxValueEntropy(gpr, mes_candidate_set)
+    mes = qMaxValueEntropy(botorch_model, mes_candidate_set)
 
     acqf_mapping: dict[str, analytic.AcquisitionFunction] = {
-        "UCB": analytic.UpperConfidenceBound(gpr, beta=0.2),
+        "UCB": analytic.UpperConfidenceBound(botorch_model, beta=0.2),
         "MES": mes,
-        "EI": analytic.LogExpectedImprovement(gpr, y.max()),
+        # TODO: test noisy EI?
+        "EI": analytic.LogExpectedImprovement(botorch_model, y.max()),
     }
 
     try:
@@ -88,18 +70,6 @@ def pick_kernel(ker: str, dim: int) -> kernels.ScaleKernel:
         ) from error
 
 
-class RandomAgent(interaction_loops.Agent):
-    def __init__(self, bounds):
-        self.bounds = bounds
-
-    def pick_query(self) -> tuple[Any, dict[str, Any]]:
-        random_query = random_queries(self.bounds)
-        return random_query, {}
-
-    def observe(self, query, feedback, evaluation) -> None:
-        del query, feedback, evaluation
-
-
 def random_queries(
     bounds: list[tuple[float, float]] | torch.Tensor, n: int = 1
 ) -> torch.Tensor:
@@ -130,6 +100,18 @@ def sample_initial_points(
     return x, y
 
 
+class RandomAgent(interaction_loops.Agent):
+    def __init__(self, bounds):
+        self.bounds = bounds
+
+    def pick_query(self) -> tuple[Any, dict[str, Any]]:
+        random_query = random_queries(self.bounds)
+        return random_query, {}
+
+    def observe(self, query, feedback, evaluation) -> None:
+        del query, feedback, evaluation
+
+
 def fit_gp(x, y, kernel, input_bounds: torch.Tensor | None = None) -> SingleTaskGP:
     """My go-to function for fitting GPs.
 
@@ -146,9 +128,7 @@ def fit_gp(x, y, kernel, input_bounds: torch.Tensor | None = None) -> SingleTask
         input_transform=input_transform.Normalize(d=dim, bounds=input_bounds),
         outcome_transform=outcome_transform.Standardize(m=1),
     )
-
-    mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
-    fit_gpytorch_mll(mll)
+    fit_gpytorch_mll(ExactMarginalLogLikelihood(gp.likelihood, gp))
 
     return gp
 
@@ -178,7 +158,7 @@ class PlainBO:
         self, x: torch.Tensor, y: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Performs BO given input `x` and `y` data points."""
-        if len(x) == 0:
+        if x.nelement() == 0:
             print(
                 "WARN: PlainBO::pick_queries is returning randomly because of empty x."
             )
@@ -200,3 +180,23 @@ class PlainBO:
         )
 
         return candidates, acqf_val
+
+
+class BO_Agent(interaction_loops.Agent):
+    """Simple Bayes optimization Agent."""
+
+    def __init__(
+        self, bounds, kernel: str, acqf: str, x_init: torch.Tensor, y_init: torch.Tensor
+    ):
+        self.bo = PlainBO(kernel, acqf, bounds)
+        self.x, self.y = x_init, y_init
+
+    def pick_query(self) -> tuple[Any, dict[str, Any]]:
+        query, val = self.bo.pick_queries(self.x, self.y)
+        return query, {"acqf_value": val}
+
+    def observe(self, query, feedback, evaluation) -> None:
+        del evaluation
+
+        self.x = torch.cat((self.x, query))
+        self.y = torch.cat((self.y, feedback))

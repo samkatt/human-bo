@@ -91,7 +91,9 @@ But I tend to just run `scripts/static_analysis.sh` and check the output.
 
 ### To do
 
+- [ ] Update this to do.
 - [ ] Figure out first experiment: random vs human BO.
+- [ ] Remove all "mapping" factories: no need to create everything!
 - [ ] Fix (understanding of) negation in test functions.
 - [ ] Add visualisation to human-then-AI experiment.
 - [?] Update configuration

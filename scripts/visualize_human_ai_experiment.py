@@ -48,6 +48,7 @@ def compare_regrets_over_time(files: list[str]) -> None:
         # Load the file and initiated configurations and results.
         new_results = torch.load(file, weights_only=True)
         new_conf = new_results["conf"]
+        # FIX: get regrets instead of y_max?
         regrets = torch.Tensor([x["y_max"] for x in results["evaluation_stats"]])
 
         # Make sure experiment shares the same parameters.
@@ -513,13 +514,11 @@ def visualize_moo(results):
 
     # Get data from file.
     queries = torch.cat(results["query"])
-    utilities = torch.cat(results["feedback"])
+    utilities = torch.cat([r["utility"] for r in results["feedback"]])
     objectives = torch.cat(
         [
-            torch.stack(
-                [torch.stack(list(q.values())) for q in r["objectives"].values()]
-            )
-            for r in results["feedback_stats"]
+            torch.tensor([list(q.values()) for q in r["objectives"].values()])
+            for r in results["feedback"]
         ]
     )
 

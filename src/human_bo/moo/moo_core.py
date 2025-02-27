@@ -3,13 +3,13 @@
 from typing import Any, Callable
 
 import torch
-from botorch.acquisition import objective
+from botorch.acquisition import AcquisitionFunction, monte_carlo, objective
 from botorch.models import model as botorch_model
 from botorch.posteriors import posterior
 from botorch.posteriors import torch as torch_posterior
 from torch import distributions
 
-from human_bo import core, interaction_loops, reporting
+from human_bo import interaction_loops, reporting
 
 CONFIG = {
     "preference_weights": {
@@ -26,7 +26,7 @@ CONFIG = {
         "tags": {"experiment-parameter"},
         "parser-arguments": {
             "required": True,
-            "choices": {"random", "bo"},
+            "choices": {"random", "bo", "objective-learner"},
         },
     },
 }
@@ -98,19 +98,36 @@ class MOOProblem(interaction_loops.Problem):
         objectives = self.moo_function(query)
         utility = self.utility_function(objectives)
 
-        return utility, {
+        return {
+            "utility": utility,
             "objectives": {
                 f"query {i}": {f"obj {j}": o for j, o in enumerate(v)}
                 for i, v in enumerate(objectives)
-            }
-        }
+            },
+        }, {}
 
     def observe(self, query, feedback, evaluation) -> None:
         del query, feedback, evaluation
 
 
+def create_acqf(
+    acqf: str,
+    model: botorch_model.Model,
+    objective: objective.GenericMCObjective,
+    x: torch.Tensor | None,
+) -> AcquisitionFunction:
+    if acqf == "UCB":
+        return monte_carlo.qUpperConfidenceBound(model, 0.2, objective=objective)
+    if acqf == "EI":
+        assert x is not None
+        return monte_carlo.qNoisyExpectedImprovement(model, x, objective=objective)
+
+    raise ValueError(f"Acquisition function {acqf} not supported.")
+
+
+# TODO: actually use this!
 class ObjectiveFunctionModel(botorch_model.Model):
-    """Transforms a deterministic function into"""
+    """Transforms a deterministic function into a MOO test function."""
 
     _num_outputs: int
 
@@ -144,24 +161,3 @@ class ObjectiveFunctionModel(botorch_model.Model):
             ret = posterior_transform(ret)
 
         return ret
-
-
-def create_AI(
-    moo_function,
-    algorithm: str,
-    kernel: str,
-    acqf: str,
-) -> interaction_loops.Agent:
-    ai_mapping: dict[str, interaction_loops.Agent] = {
-        "random": core.RandomAgent(moo_function.bounds),
-        "bo": core.BO_Agent(
-            moo_function._bounds, kernel, acqf, torch.Tensor(), torch.Tensor()
-        ),
-    }
-
-    try:
-        return ai_mapping[algorithm]
-    except KeyError as error:
-        raise ValueError(
-            f"{algorithm} not accepted algorithm (not in {ai_mapping.keys()})"
-        ) from error

@@ -7,7 +7,7 @@ import argparse
 import torch
 
 from human_bo import conf, interaction_loops, reporting, test_functions, utils
-from human_bo.moo import moo_core
+from human_bo.moo import agents, moo_core
 
 
 def main():
@@ -63,8 +63,12 @@ def main():
     )
 
     evaluation = moo_core.MOOEvaluation(moo_function, utility_function, report_step)
-    agent = moo_core.create_AI(
-        moo_function, exp_params["algorithm"], exp_params["kernel"], exp_params["acqf"]
+    agent = agents.create_AI(
+        moo_function,
+        utility_function,
+        exp_params["algorithm"],
+        exp_params["kernel"],
+        exp_params["acqf"],
     )
     problem = moo_core.MOOProblem(moo_function, utility_function)
 

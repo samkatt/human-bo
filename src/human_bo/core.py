@@ -15,8 +15,7 @@ from gpytorch.mlls import ExactMarginalLogLikelihood
 from human_bo import interaction_loops
 
 
-# TODO: rename to `create_acqf`?
-def pick_acqf(
+def create_acqf(
     acqf: str, y: torch.Tensor, botorch_model: model.Model, bounds: torch.Tensor
 ) -> analytic.AcquisitionFunction:
     """Instantiate the given acqf.
@@ -167,7 +166,7 @@ class PlainBO:
         gp = fit_gp(x, y, pick_kernel(self.kernel, self.dim), self.bounds)
 
         candidates, acqf_val = optimize_acqf(
-            acq_function=pick_acqf(
+            acq_function=create_acqf(
                 self.acqf,
                 outcome_transform.Standardize(m=1)(y.unsqueeze(-1))[0],
                 gp,

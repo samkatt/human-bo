@@ -3,7 +3,12 @@
 from typing import Any, Callable
 
 import torch
-from botorch.acquisition import AcquisitionFunction, monte_carlo, objective
+from botorch.acquisition import (
+    AcquisitionFunction,
+    monte_carlo,
+    objective as botorch_objective,
+    qLogNoisyExpectedImprovement,
+)
 from botorch.models import model as botorch_model
 from botorch.posteriors import posterior
 from botorch.posteriors import torch as torch_posterior
@@ -36,7 +41,7 @@ type UtilityFunction = Callable[[torch.Tensor], torch.Tensor]
 
 def create_utility_function(w: list[float]) -> UtilityFunction:
     """Currently just a simple function that creates a `LinearMCObjective` from botorch."""
-    return objective.LinearMCObjective(torch.Tensor(w))
+    return botorch_objective.LinearMCObjective(torch.Tensor(w))
 
 
 class MOOEvaluation(interaction_loops.Evaluation):
@@ -113,14 +118,14 @@ class MOOProblem(interaction_loops.Problem):
 def create_acqf(
     acqf: str,
     model: botorch_model.Model,
-    objective: objective.GenericMCObjective,
+    objective: botorch_objective.GenericMCObjective,
     x: torch.Tensor | None,
 ) -> AcquisitionFunction:
     if acqf == "UCB":
         return monte_carlo.qUpperConfidenceBound(model, 0.2, objective=objective)
     if acqf == "EI":
         assert x is not None
-        return monte_carlo.qNoisyExpectedImprovement(model, x, objective=objective)
+        return qLogNoisyExpectedImprovement(model, x, objective=objective)
 
     raise ValueError(f"Acquisition function {acqf} not supported.")
 
@@ -149,7 +154,7 @@ class ObjectiveFunctionModel(botorch_model.Model):
         X: torch.Tensor,
         output_indices: list[int] | None = None,
         observation_noise: bool | torch.Tensor = False,
-        posterior_transform: objective.PosteriorTransform | None = None,
+        posterior_transform: botorch_objective.PosteriorTransform | None = None,
     ) -> posterior.Posterior:
         del observation_noise
 

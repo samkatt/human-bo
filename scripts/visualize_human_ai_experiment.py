@@ -188,7 +188,7 @@ def visualize_trajectory_1D(results) -> None:
         gpr_post_mean = posteriors.mean.squeeze().detach().numpy()
         gpr_post_var = posteriors.variance.squeeze().detach().numpy()
 
-        acqf = core.pick_acqf(
+        acqf = core.create_acqf(
             exp_params["acqf"],
             outcome.Standardize(m=1)(y.unsqueeze(-1))[0],
             gpr,
@@ -364,7 +364,7 @@ def visualize_trajectory_2D(result_file_content) -> None:
         gpr_post_mean = posteriors.mean.squeeze()
         gpr_post_var = posteriors.variance.squeeze()
 
-        acqf = core.pick_acqf(
+        acqf = core.create_acqf(
             exp_params["acqf"],
             outcome.Standardize(m=1)(y.unsqueeze(-1))[0],
             gpr,

@@ -12,7 +12,7 @@ CONFIG = {
         "shorthand": "u",
         "help": "The mechanism through which queries are given.",
         "tags": {"experiment-parameter"},
-        "parser-arguments": {"choices": {"oracle", "gauss"}},
+        "parser-arguments": {"choices": {"oracle", "gauss"}, "required": True},
     }
 }
 

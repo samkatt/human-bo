@@ -47,7 +47,6 @@ def main():
 
     torch.manual_seed(exp_params["seed"])
 
-    # TODO: check for handling multiple values for `problem_noise`?
     moo_function = test_functions.pick_moo_test_function(
         exp_params["problem"], exp_params["problem_noise"]
     )

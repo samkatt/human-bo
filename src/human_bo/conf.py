@@ -9,35 +9,38 @@ CONFIG: dict[str, dict[str, Any]] = {
         "shorthand": "s",
         "help": "Random seed to run the experiment.",
         "tags": {},
-        "parser-arguments": {"required": True},
+        "parser-arguments": {"default": 0},
     },
     "budget": {
         "type": int,
         "shorthand": "b",
         "help": "Number of queries.",
         "tags": {"experiment-hyper-parameter"},
-        "parser-arguments": {"required": True},
+        "parser-arguments": {"default": 10},
     },
     "n_init": {
         "type": int,
         "shorthand": "ni",
         "help": "Number of initial data points.",
         "tags": {"experiment-hyper-parameter"},
-        "parser-arguments": {"required": True},
+        "parser-arguments": {"default": 0},
     },
     "kernel": {
         "type": str,
         "shorthand": "k",
         "help": "Kernel of the GP.",
         "tags": {"experiment-parameter"},
-        "parser-arguments": {"required": True, "choices": {"RBF", "Matern", "Default"}},
+        "parser-arguments": {
+            "default": "Default",
+            "choices": {"RBF", "Matern", "Default"},
+        },
     },
     "acqf": {
         "type": str,
         "shorthand": "a",
         "help": "Acquisition function used.",
         "tags": {"experiment-parameter"},
-        "parser-arguments": {"required": True, "choices": {"UCB", "MES", "EI"}},
+        "parser-arguments": {"default": "MES", "choices": {"UCB", "MES", "EI"}},
     },
     "problem": {
         "type": str,
@@ -79,7 +82,7 @@ CONFIG: dict[str, dict[str, Any]] = {
         "shorthand": "e",
         "help": "The Gaussian noise (variation) with which function `f` is observed.",
         "tags": {"experiment-hyper-parameter"},
-        "parser-arguments": {"default": 0.01},
+        "parser-arguments": {"default": [0.1], "nargs": "+"},
     },
 }
 

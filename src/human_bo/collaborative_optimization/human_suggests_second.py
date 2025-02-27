@@ -19,7 +19,7 @@ CONFIG = {
         "shorthand": "u",
         "help": "The (real) user behavior.",
         "tags": {"experiment-parameter"},
-        "parser-arguments": {"choices": {"random", "bo", "noop"}},
+        "parser-arguments": {"choices": {"random", "bo", "noop"}, "required": True},
     }
 }
 

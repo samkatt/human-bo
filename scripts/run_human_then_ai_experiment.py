@@ -51,7 +51,7 @@ def main():
 
     # Create problem and evaluation.
     f = test_functions.pick_test_function(
-        exp_params["problem"], exp_params["problem_noise"]
+        exp_params["problem"], exp_params["problem_noise"][0]
     )
     problem = Problem(f)
 

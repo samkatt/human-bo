@@ -27,7 +27,7 @@ def get_init_points(res):
         x = torch.cat((x, res["ai_conf"]["initial_points"]["x"]))
         y = torch.cat((y, res["ai_conf"]["initial_points"]["y"]))
 
-    if "user_conf" in res and "initial_points" in res["user_model_conf"]:
+    if "user_conf" in res and "initial_points" in res["user_conf"]:
         x = torch.cat((x, res["user_conf"]["initial_points"]["x"]))
         y = torch.cat((y, res["user_conf"]["initial_points"]["y"]))
 
@@ -514,7 +514,16 @@ def visualize_moo(results):
     # Get data from file.
     queries = torch.cat(results["query"])
     utilities = torch.cat(results["feedback"])
-    objectives = torch.cat([r["objectives"] for r in results["feedback_stats"]])
+    objectives = torch.cat(
+        [
+            torch.stack(
+                [torch.stack(list(q.values())) for q in r["objectives"].values()]
+            )
+            for r in results["feedback_stats"]
+        ]
+    )
+
+    # TODO: plot true utilities as line and plot observations as points.
 
     assert len(queries) == len(utilities) == len(objectives)
 

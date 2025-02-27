@@ -3,7 +3,7 @@
 from typing import Any, Callable
 
 import torch
-from botorch.acquisition import analytic, qMaxValueEntropy
+from botorch.acquisition import analytic, qMaxValueEntropy, qLogNoisyExpectedImprovement
 from botorch.fit import fit_gpytorch_mll
 from botorch.models import SingleTaskGP, model
 from botorch.models.transforms import input as input_transform
@@ -16,12 +16,12 @@ from human_bo import interaction_loops
 
 
 def create_acqf(
-    acqf: str, y: torch.Tensor, botorch_model: model.Model, bounds: torch.Tensor
+    acqf: str, x: torch.Tensor, botorch_model: model.Model, bounds: torch.Tensor
 ) -> analytic.AcquisitionFunction:
     """Instantiate the given acqf.
 
     :acqf: string representation of the acquisition function to pick
-    :y: initial y values (probably to compute the max)
+    :x: observed x values.
     :botorch_model: the model (GP) used by the acquisition function
     :bounds: [x,y] bounds on the function
     """
@@ -35,8 +35,7 @@ def create_acqf(
     acqf_mapping: dict[str, analytic.AcquisitionFunction] = {
         "UCB": analytic.UpperConfidenceBound(botorch_model, beta=0.2),
         "MES": mes,
-        # TODO: test noisy EI?
-        "EI": analytic.LogExpectedImprovement(botorch_model, y.max()),
+        "EI": qLogNoisyExpectedImprovement(botorch_model, x),
     }
 
     try:
@@ -168,7 +167,7 @@ class PlainBO:
         candidates, acqf_val = optimize_acqf(
             acq_function=create_acqf(
                 self.acqf,
-                outcome_transform.Standardize(m=1)(y.unsqueeze(-1))[0],
+                x,
                 gp,
                 self.bounds,
             ),

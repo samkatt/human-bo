@@ -190,7 +190,7 @@ def visualize_trajectory_1D(results) -> None:
 
         acqf = core.create_acqf(
             exp_params["acqf"],
-            outcome.Standardize(m=1)(y.unsqueeze(-1))[0],
+            x,
             gpr,
             bounds,
         )
@@ -366,7 +366,7 @@ def visualize_trajectory_2D(result_file_content) -> None:
 
         acqf = core.create_acqf(
             exp_params["acqf"],
-            outcome.Standardize(m=1)(y.unsqueeze(-1))[0],
+            x,
             gpr,
             bounds,
         )

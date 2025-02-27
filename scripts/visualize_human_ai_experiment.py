@@ -9,7 +9,6 @@ from typing import Any
 
 import matplotlib.pyplot as plt
 import torch
-from botorch.models.transforms import outcome
 from matplotlib.widgets import Slider
 
 from human_bo import conf, core, test_functions, utils, visualization
@@ -34,7 +33,7 @@ def get_init_points(res):
     return x, y
 
 
-def compare_regrets_over_time(files: list[str]) -> None:
+def compare_ymax_over_time(files: list[str]) -> None:
     """Visualizes (plots) the regrets in of `files`
 
     Asserts that the results being compared have the same hyper parameter.
@@ -48,8 +47,7 @@ def compare_regrets_over_time(files: list[str]) -> None:
         # Load the file and initiated configurations and results.
         new_results = torch.load(file, weights_only=True)
         new_conf = new_results["conf"]
-        # FIX: get regrets instead of y_max?
-        regrets = torch.Tensor([x["y_max"] for x in results["evaluation_stats"]])
+        y_max = torch.Tensor([x["y_max"] for x in new_results["evaluation_stats"]])
 
         # Make sure experiment shares the same parameters.
         for k, c in conf.CONFIG.items():
@@ -79,32 +77,31 @@ def compare_regrets_over_time(files: list[str]) -> None:
 
         # `r` is now a bunch of results (one per seed)
         if current_results_for_experiment:
-            current_results_for_experiment["regrets"] = torch.cat(
-                (current_results_for_experiment["regrets"], regrets.unsqueeze(-1)),
+            current_results_for_experiment["y_max"] = torch.cat(
+                (current_results_for_experiment["y_max"], y_max.unsqueeze(-1)),
                 dim=1,
             )
         else:
             # First time looking at this particular experimental setup!
             current_results_for_experiment["conf"] = new_conf
-            current_results_for_experiment["regrets"] = regrets.unsqueeze(-1)
+            current_results_for_experiment["y_max"] = y_max.unsqueeze(-1)
 
     # Go over all results and compute (and store) their mean and standard error.
     for e in utils.recursively_filter_dict(
-        results, lambda _, v: isinstance(v, dict) and "regrets" in v
+        results, lambda _, v: isinstance(v, dict) and "y_max" in v
     ):
-        r = e["regrets"]
-        e["mean_regret"] = r.mean(axis=1)
-        # e["std_regret"] = 1.96 * r.std(axis=1) / math.sqrt(r.shape[1])
-        e["std_regret"] = r.std(axis=1) / math.sqrt(r.shape[1])
+        r = e["y_max"]
+        e["mean_y_max"] = r.mean(axis=1)
+        e["std_y_max"] = 1.96 * r.std(axis=1) / math.sqrt(r.shape[1])
 
     fig = plt.figure(figsize=(8, 6))
 
     for e in utils.recursively_filter_dict(
-        results, lambda _, v: isinstance(v, dict) and "regrets" in v
+        results, lambda _, v: isinstance(v, dict) and "y_max" in v
     ):
         exp_params = e["conf"]
-        mean = e["mean_regret"]
-        std = e["std_regret"]
+        mean = e["mean_y_max"]
+        std = e["std_y_max"]
 
         plt.plot(
             range(len(mean)),
@@ -126,7 +123,7 @@ def compare_regrets_over_time(files: list[str]) -> None:
         # plt.yscale("log")
 
     plt.xlabel("Budget (Iterations)")
-    plt.ylabel("Simple regret")
+    plt.ylabel("max y")
     fig.legend(shadow=True)
     fig.tight_layout(pad=0)
 
@@ -647,7 +644,7 @@ if __name__ == "__main__":
         default="regrets",
         type=str,
         help="Type of visualization.",
-        choices=["regrets", "trajectory"],
+        choices=["y_max", "trajectory"],
     )
     parser.add_argument(
         "-f",
@@ -670,8 +667,8 @@ if __name__ == "__main__":
     torch.set_default_dtype(torch.double)
     visualization.set_matplotlib_params()
 
-    if args.type == "regrets":
-        compare_regrets_over_time(args.files)
+    if args.type == "y_max":
+        compare_ymax_over_time(args.files)
 
     if args.type == "trajectory":
         if len(args.files) != 1:

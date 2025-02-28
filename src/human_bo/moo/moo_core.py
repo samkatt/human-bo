@@ -18,7 +18,7 @@ CONFIG = {
         "type": float,
         "shorthand": "w",
         "help": "List of weights representing user objective preferences, must sum to one!",
-        "tags": {},
+        "tags": {"experiment-hyper-parameter"},
         "parser-arguments": {"nargs": "+", "required": True},
     },
     "algorithm": {

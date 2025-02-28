@@ -139,6 +139,7 @@ def visualize_trajectory_1D(results) -> None:
 
     # Load configurations and results.
     exp_params = results["conf"]
+    acqf_options = conf.get_entries_with_tag(exp_params, "acqf-option")
     problem = test_functions.pick_test_function(exp_params["problem"], noise=0.0)
 
     bounds = torch.tensor(problem._bounds).T
@@ -190,6 +191,7 @@ def visualize_trajectory_1D(results) -> None:
             x,
             gpr,
             bounds,
+            **acqf_options,
         )
         acqf_eval = acqf(x_linspace[:, None, :]).detach().numpy()
 
@@ -311,6 +313,7 @@ def visualize_trajectory_2D(result_file_content) -> None:
 
     # Load configurations and results.
     exp_params = result_file_content["conf"]
+    acqf_options = conf.get_entries_with_tag(exp_params, "acqf-option")
     problem = test_functions.pick_test_function(exp_params["problem"], noise=0.0)
 
     # Pre-compute global variables.
@@ -361,12 +364,7 @@ def visualize_trajectory_2D(result_file_content) -> None:
         gpr_post_mean = posteriors.mean.squeeze()
         gpr_post_var = posteriors.variance.squeeze()
 
-        acqf = core.create_acqf(
-            exp_params["acqf"],
-            x,
-            gpr,
-            bounds,
-        )
+        acqf = core.create_acqf(exp_params["acqf"], x, gpr, bounds, **acqf_options)
         acqf_eval = acqf(X.reshape(-1, 2)[:, None, :]).reshape(gpr_post_mean.shape)
 
         results.append(

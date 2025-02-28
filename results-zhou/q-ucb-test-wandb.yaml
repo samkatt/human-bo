@@ -1,0 +1,4 @@
+project: bo-zhou # the project name in wandb
+entity: skatt # user/team name on wandb
+group: ucb-test # group name in wandb (extra organizational power)
+mode: offline # set to "online" if you want to report directly

@@ -44,8 +44,9 @@ CONFIG: dict[str, dict[str, Any]] = {
     },
     "ucb_beta": {
         "type": float,
+        "shorthand": "c",
         "help": "Exploration constant used in UCB",
-        "tags": {"acqf-option"},
+        "tags": {"acqf-option", "experiment-hyper-parameter"},
         "parser-arguments": {"default": 0.2},
     },
     "problem": {

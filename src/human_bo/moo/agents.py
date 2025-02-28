@@ -9,7 +9,7 @@ from typing import Any
 
 import torch
 from botorch import fit, models, optim
-from botorch.acquisition import objective
+from botorch.acquisition import monte_carlo, objective
 from botorch.models.transforms import input as input_transform
 from botorch.models.transforms import outcome as outcome_transform
 from gpytorch.mlls import sum_marginal_log_likelihood
@@ -82,7 +82,6 @@ class ObjectiveLearner(interaction_loops.Agent):
             return core.random_queries(self.bounds), {}
 
         # Fit models to data.
-        # TODO: compare to single-objective fitting?
         gprs = [
             models.SingleTaskGP(
                 self.x,
@@ -119,8 +118,15 @@ class ObjectiveLearner(interaction_loops.Agent):
             raw_samples=512,
         )
 
-        # TODO: return `arg_map`.
-        return candidates, {"acqf_value": acqf_val}
+        map_arg_max, _ = optim.optimize_acqf(
+            acq_function=monte_carlo.qSimpleRegret(model),
+            bounds=self.bounds,
+            q=1,
+            num_restarts=10,
+            raw_samples=512,
+        )
+
+        return candidates, {"acqf_value": acqf_val, "map_arg_max": map_arg_max[0]}
 
     def observe(self, query, feedback, evaluation) -> None:
         del evaluation

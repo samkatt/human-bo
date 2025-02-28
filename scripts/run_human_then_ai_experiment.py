@@ -157,19 +157,21 @@ class Evaluation(interaction_loops.Evaluation):
         feedback_stats: dict[str, Any],
         **kwargs,
     ) -> tuple[Any, dict[str, Any]]:
-        del feedback, query_stats
+        del feedback
 
         y_true = self.problem_function(query, noise=False)
 
         self.y_max = max(self.y_max, y_true.max().item())
-        regret = self.problem_function.optimal_value - self.y_max
 
         evaluation = {
             "y_true": y_true,
             "y_max": self.y_max,
-            "regret": regret,
         }
 
+        if "map_arg_max" in query_stats:
+            evaluation["regret"] = self.problem_function(
+                query_stats["map_arg_max"].unsqueeze(0), noise=False
+            )
         if "acqf_value" in feedback_stats:
             evaluation["user_acqf_val"] = feedback_stats["acqf_value"]
         if "acqf_value" in kwargs["ai_stats"]:

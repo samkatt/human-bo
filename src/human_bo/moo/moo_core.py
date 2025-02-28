@@ -70,7 +70,6 @@ class MOOEvaluation(interaction_loops.Evaluation):
         utility_true = self.utility_function(objectives_true)
 
         self.u_max = max(self.u_max, utility_true.max().item())
-        # TODO: implement regret tracking.
 
         evaluation = {
             "utility_true": utility_true,
@@ -82,6 +81,12 @@ class MOOEvaluation(interaction_loops.Evaluation):
             "query_stats": query_stats,
             "feedback_stats": feedback_stats,
         }
+
+        if "map_arg_max" in query_stats:
+            objectives_map_arg_max = self.moo_function(
+                query_stats["map_arg_max"], noise=False
+            )
+            evaluation["map_max"] = self.utility_function(objectives_map_arg_max)
 
         self.step += 1
         self.report_step(evaluation, self.step)

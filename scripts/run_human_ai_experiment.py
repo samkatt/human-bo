@@ -112,7 +112,9 @@ class Human(interaction_loops.Problem):
         y_observed = self.problem_function(query)
         feedback = self.user(query, y_observed)
 
-        return feedback, {"y_observed": y_observed}
+        y_true = self.problem_function(query, noise=False)
+
+        return feedback, {"y_observed": y_observed, "y_true": y_true}
 
     def observe(self, query, feedback, evaluation) -> None:
         del query, feedback, evaluation
@@ -138,15 +140,19 @@ class Evaluation(interaction_loops.Evaluation):
         y_true = self.problem_function(query, noise=False)
 
         self.y_max = max(self.y_max, y_true.max().item())
-        regret = self.problem_function.optimal_value - self.y_max
 
         evaluation = {
             "y_true": y_true,
             "y_max": self.y_max,
-            "regret": regret,
             "query_stats": query_stats,
             "feedback_stats": feedback_stats,
         }
+
+        if "map_arg_max" in query_stats:
+            # TODO: investigate why `unsqueeze`.
+            evaluation["regret"] = self.problem_function(
+                query_stats["map_arg_max"].unsqueeze(0), noise=False
+            )
 
         self.step += 1
         self.report_step(evaluation, self.step)

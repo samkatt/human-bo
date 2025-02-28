@@ -189,8 +189,15 @@ class PlainBO:
             raw_samples=512,
         )
 
-        # TODO: implement `arg_map`
-        return candidates, {"acqf_val": acqf_val, "arg_map": 0}
+        map_arg_max, _ = optimize_acqf(
+            acq_function=monte_carlo.qSimpleRegret(gp),
+            bounds=self.bounds,
+            q=1,
+            num_restarts=10,
+            raw_samples=512,
+        )
+
+        return candidates, {"acqf_val": acqf_val, "map_arg_max": map_arg_max[0]}
 
 
 class BO_Agent(interaction_loops.Agent):

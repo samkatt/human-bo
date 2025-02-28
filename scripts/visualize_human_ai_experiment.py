@@ -9,6 +9,8 @@ from typing import Any
 
 import matplotlib.pyplot as plt
 import torch
+from botorch import optim
+from botorch.acquisition import monte_carlo
 from matplotlib.widgets import Slider
 
 from human_bo import conf, core, test_functions, utils, visualization
@@ -167,6 +169,7 @@ def visualize_trajectory_1D(results) -> None:
             results.append(
                 {
                     "gpr_post_mean": torch.zeros(len(x_linspace)),
+                    "map_arg_max": None,
                     "gpr_post_var": torch.zeros(len(x_linspace)),
                     "queries": queries[: b + 1],
                     "x_init": x_init,
@@ -195,6 +198,15 @@ def visualize_trajectory_1D(results) -> None:
         )
         acqf_eval = acqf(x_linspace[:, None, :]).detach().numpy()
 
+        map_arg_max, _ = optim.optimize_acqf(
+            acq_function=monte_carlo.qSimpleRegret(gpr),
+            bounds=bounds,
+            q=1,
+            num_restarts=10,
+            raw_samples=512,
+        )
+        map_arg_max_y = problem(map_arg_max, noise=False)
+
         results.append(
             {
                 "gpr_post_mean": gpr_post_mean,
@@ -204,6 +216,7 @@ def visualize_trajectory_1D(results) -> None:
                 "observations": observations[: b + 1],
                 "y_init": y_init,
                 "acqf": acqf_eval,
+                "map_arg_max": (map_arg_max[0].numpy(), map_arg_max_y[0].item()),
             }
         )
 
@@ -219,7 +232,7 @@ def visualize_trajectory_1D(results) -> None:
 
         # Grab results for time step `b`
         r = results[b]
-        m, var, queries_at_b, x_init, observations_at_b, y_init, acqf = (
+        m, var, queries_at_b, x_init, observations_at_b, y_init, acqf, map = (
             r["gpr_post_mean"],
             r["gpr_post_var"],
             r["queries"],
@@ -227,6 +240,7 @@ def visualize_trajectory_1D(results) -> None:
             r["observations"],
             r["y_init"],
             r["acqf"],
+            r["map_arg_max"],
         )
 
         ax.plot(x_linspace, y_truth, label="Ground Truth")
@@ -244,7 +258,7 @@ def visualize_trajectory_1D(results) -> None:
             x_init,
             y_init,
             alpha=0.5,
-            color="black",
+            color="green",
             marker="x",
             s=100,
             label="init points",
@@ -253,7 +267,7 @@ def visualize_trajectory_1D(results) -> None:
             queries_at_b,
             observations_at_b,
             alpha=0.5,
-            color="green",
+            color="black",
             marker="x",
             s=100,
             label="observations",
@@ -261,6 +275,8 @@ def visualize_trajectory_1D(results) -> None:
 
         if b < n:
             ax.scatter(queries[b], observations[b], color="r", label="Next")
+        if map:
+            ax.scatter(map[0], map[1], color="b", label="MAP")
 
         ax.plot(
             x_linspace,
@@ -422,9 +438,9 @@ def visualize_trajectory_2D(result_file_content) -> None:
                 ]
             )
 
-            axs[k].scatter(x[:, 0], x[:, 1], color="green", label="observations")
+            axs[k].scatter(x[:, 0], x[:, 1], color="black", label="observations")
             axs[k].scatter(
-                x_init[:, 0], x_init[:, 1], color="purple", label="initial points"
+                x_init[:, 0], x_init[:, 1], color="green", label="initial points"
             )
 
         axs["ax_3d"].clear()
@@ -450,7 +466,7 @@ def visualize_trajectory_2D(result_file_content) -> None:
         )
         axs["ax_3d"].scatter(x[:, 0], x[:, 1], y, color="black", label="observations")
         axs["ax_3d"].scatter(
-            x_init[:, 0], x_init[:, 1], y_init, color="blue", label="initial points"
+            x_init[:, 0], x_init[:, 1], y_init, color="green", label="initial points"
         )
 
         if b < n:
@@ -510,6 +526,22 @@ def visualize_moo(results):
     # Get data from file.
     queries = torch.cat(results["query"])
     utilities = torch.cat([r["utility"] for r in results["feedback"]])
+    map_max = torch.stack(
+        [
+            r["map_max"] if "map_max" in r else torch.tensor(torch.nan)
+            for r in results["evaluation_stats"]
+        ]
+    )
+    map_arg_max = torch.stack(
+        [
+            (
+                r["map_arg_max"]
+                if "map_arg_max" in r
+                else torch.tensor([torch.nan, torch.nan])
+            )
+            for r in results["query_stats"]
+        ]
+    )
     objectives = torch.cat(
         [
             torch.tensor([list(q.values()) for q in r["objectives"].values()])
@@ -544,10 +576,12 @@ def visualize_moo(results):
 
     # Utility plot.
     ax_u.plot(utilities, label="Utility", color="black")
+    ax_u.plot(map_max, label="MAP", color="brown")
+    # ax_u.plot([e["t"] for e in maps], [e["y"].item() for e in maps], label="MAP", color="orange")
     (lines_u_next,) = ax_u.plot(utilities[-1], n, "ro", label="Next")
     ax_u.set_xlim(0, n)
     ax_u.set_xlabel("budget")
-    ax_u.set_ylabel("u(x)")
+    ax_u.set_ylabel("u")
     ax_u.set_title("Utility")
     ax_u.legend()
 
@@ -578,6 +612,7 @@ def visualize_moo(results):
     if ax_x:
         U_x = utility_function(problem(torch.stack(X_mesh, dim=2)))
         contourf_x = ax_x.contourf(*x_linspaces, U_x, cmap="cividis")
+        (objectives_map_arg_max,) = ax_x.plot(torch.nan, torch.nan, "go", label="MAP")
         plt.colorbar(contourf_x, ax=ax_x)
 
         (scattered_x,) = ax_x.plot(queries[:, 0], queries[:, 1], "ko")
@@ -614,11 +649,15 @@ def visualize_moo(results):
                 scatter_next_o.set_data([next_o[0]], [next_o[1]])
             if scattered_next_x:
                 scattered_next_x.set_data([next_x[0]], [next_x[1]])
+                objectives_map_arg_max.set_data(
+                    [map_arg_max[b][0]], [map_arg_max[b][1]]
+                )
         else:
             lines_u_next.set_data([], [])
             if scatter_next_o:
                 scatter_next_o.set_data([], [])
             if scattered_next_x:
+                objectives_map_arg_max.set_data([], [])
                 scattered_next_x.set_data([], [])
 
         return 0

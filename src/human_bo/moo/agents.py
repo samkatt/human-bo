@@ -26,8 +26,8 @@ class UtilityBO(interaction_loops.Agent):
         self.u = torch.Tensor()
 
     def pick_query(self) -> tuple[Any, dict[str, Any]]:
-        query, acqf_val = self.bo.pick_queries(self.x, self.u)
-        return query, {"acqf_value": acqf_val}
+        query, stats = self.bo.pick_queries(self.x, self.u)
+        return query, stats
 
     def observe(self, query, feedback, evaluation) -> None:
         del evaluation
@@ -79,9 +79,10 @@ class ObjectiveLearner(interaction_loops.Agent):
             print(
                 "WARN: PlainBO::pick_queries is returning randomly because of empty x."
             )
-            return core.random_queries(self.bounds), {"acqf_value": torch.Tensor(0)}
+            return core.random_queries(self.bounds), {}
 
         # Fit models to data.
+        # TODO: compare to single-objective fitting?
         gprs = [
             models.SingleTaskGP(
                 self.x,
@@ -117,6 +118,8 @@ class ObjectiveLearner(interaction_loops.Agent):
             num_restarts=10,
             raw_samples=512,
         )
+
+        # TODO: return `arg_map`.
         return candidates, {"acqf_value": acqf_val}
 
     def observe(self, query, feedback, evaluation) -> None:

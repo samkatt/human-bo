@@ -113,8 +113,8 @@ class AI(interaction_loops.Agent):
         self.x, self.y = x_init, y_init
 
     def pick_query(self) -> tuple[Any, dict[str, Any]]:
-        query, val = self.bo.pick_queries(self.x, self.y)
-        return query, {"acqf_value": val}
+        query, query_stats = self.bo.pick_queries(self.x, self.y)
+        return query, query_stats
 
     def observe(self, query, feedback, evaluation) -> None:
         del query, evaluation
@@ -168,11 +168,12 @@ class Evaluation(interaction_loops.Evaluation):
             "y_true": y_true,
             "y_max": self.y_max,
             "regret": regret,
-            "ai_acqf_val": kwargs["ai_stats"]["acqf_value"],
         }
 
         if "acqf_value" in feedback_stats:
             evaluation["user_acqf_val"] = feedback_stats["acqf_value"]
+        if "acqf_value" in kwargs["ai_stats"]:
+            evaluation["ai_acqf_val"] = kwargs["ai_stats"]["acqf_value"]
 
         # In this problem, the user is allowed to pick different number of queries.
         # To respect this, we keep track of number of queries.

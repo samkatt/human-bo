@@ -120,12 +120,10 @@ def create_acqf(
     **acqf_options,
 ) -> AcquisitionFunction:
     if acqf == "UCB":
-        if "ucb_beta" not in acqf_options:
-            ValueError(
-                f"Cannot initiate UCB without `ucb_beta` defined in {acqf_options}"
-            )
-        ucb_beta = acqf_options["ucb_beta"]
-        return monte_carlo.qUpperConfidenceBound(model, ucb_beta, objective=objective)
+        assert "ucb_beta" in acqf_options
+        return monte_carlo.qUpperConfidenceBound(
+            model, acqf_options["ucb_beta"], objective=objective
+        )
     if acqf == "EI":
         assert x is not None
         return qLogNoisyExpectedImprovement(model, x, objective=objective)

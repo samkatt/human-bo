@@ -169,13 +169,13 @@ class PlainBO:
 
     def pick_queries(
         self, x: torch.Tensor, y: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, dict[str, Any]]:
         """Performs BO given input `x` and `y` data points."""
         if x.nelement() == 0:
             print(
                 "WARN: PlainBO::pick_queries is returning randomly because of empty x."
             )
-            return random_queries(self.bounds), torch.Tensor(0)
+            return random_queries(self.bounds), {}
 
         gp = fit_gp(x, y, pick_kernel(self.kernel, self.dim), self.bounds)
 
@@ -189,7 +189,8 @@ class PlainBO:
             raw_samples=512,
         )
 
-        return candidates, acqf_val
+        # TODO: implement `arg_map`
+        return candidates, {"acqf_val": acqf_val, "arg_map": 0}
 
 
 class BO_Agent(interaction_loops.Agent):
@@ -208,8 +209,8 @@ class BO_Agent(interaction_loops.Agent):
         self.x, self.y = x_init, y_init
 
     def pick_query(self) -> tuple[Any, dict[str, Any]]:
-        query, val = self.bo.pick_queries(self.x, self.y)
-        return query, {"acqf_value": val}
+        query, stats = self.bo.pick_queries(self.x, self.y)
+        return query, stats
 
     def observe(self, query, feedback, evaluation) -> None:
         del evaluation

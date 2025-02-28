@@ -32,8 +32,8 @@ class BayesOptUser(interaction_loops.User):
         self.x, self.y = x_init, y_init
 
     def pick_action(self, query) -> tuple[Any, dict[str, Any]]:
-        user_query, val = self.bo.pick_queries(self.x, self.y)
-        return torch.cat((query, user_query)), {"acqf_value": val}
+        user_query, user_query_stats = self.bo.pick_queries(self.x, self.y)
+        return torch.cat((query, user_query)), user_query_stats
 
     def observe(self, action, feedback, evaluation) -> None:
         del evaluation

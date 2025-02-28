@@ -18,19 +18,43 @@ from human_bo.moo import moo_core
 def get_init_points(res):
     x, y = torch.Tensor(), torch.Tensor()
 
-    if "initial_points" in res:
+    if res["conf"]["experiment_type"] == "human-feedback":
+        assert "initial_points" in res
         x = torch.cat((x, res["initial_points"]["x"]))
         y = torch.cat((y, res["initial_points"]["y"]))
 
-    if "ai_conf" in res and "initial_points" in res["ai_conf"]:
+    if res["conf"]["experiment_type"] == "human-picks":
+        assert (
+            "ai_conf" in res
+            and "initial_points" in res["ai_conf"]
+            and "user_conf" in res
+        )
         x = torch.cat((x, res["ai_conf"]["initial_points"]["x"]))
         y = torch.cat((y, res["ai_conf"]["initial_points"]["y"]))
 
-    if "user_conf" in res and "initial_points" in res["user_conf"]:
-        x = torch.cat((x, res["user_conf"]["initial_points"]["x"]))
-        y = torch.cat((y, res["user_conf"]["initial_points"]["y"]))
+        if "initial_points" in res["user_conf"]:
+            print("WARN: ignoring user's initial points.")
 
     return x, y
+
+
+def get_map(res):
+    stats = (
+        res["ai_stats"]
+        if res["conf"]["experiment_type"] == "human-picks"
+        else res["query_stats"]
+    )
+
+    return torch.stack(
+        [
+            (
+                i["map_arg_max"]
+                if "map_arg_max" in i
+                else torch.Tensor([torch.nan] * x_dim)
+            )
+            for i in stats
+        ]
+    )
 
 
 def compare_ymax_over_time(files: list[str]) -> None:
@@ -130,15 +154,14 @@ def compare_ymax_over_time(files: list[str]) -> None:
     plt.show()
 
 
-def visualize_trajectory_1D(results) -> None:
+def visualize_trajectory_1D(data) -> None:
     """Visualizes the end result (approximation, sample data, etc)
 
     :file: file path (string)
     :returns: None
     """
-
-    # Load configurations and results.
-    exp_params = results["conf"]
+    # Load configurations and data.
+    exp_params = data["conf"]
     acqf_options = conf.get_entries_with_tag(exp_params, "acqf-option")
     problem = test_functions.pick_test_function(exp_params["problem"], noise=0.0)
 
@@ -148,18 +171,20 @@ def visualize_trajectory_1D(results) -> None:
     x_linspace = torch.linspace(x_min, x_max, 101).reshape(-1, 1)
     y_truth = problem(x_linspace)
 
-    x_init, y_init = get_init_points(results)
-    queries, observations = torch.cat(results["query"]), torch.cat(results["feedback"])
-
+    x_init, y_init = get_init_points(data)
+    queries, observations = torch.stack(data["query"]), torch.stack(data["feedback"])
+    map_x = get_map(data)
+    map_y = problem(map_x)
     n = len(observations)
 
     # Process results for each "time step"
     results = []
-    for b in range(-1, n):
-        x = torch.cat((x_init, queries[: b + 1]))
-        y = torch.cat((y_init, observations[: b + 1]))
+    for b in range(n + 1):
+        x = torch.cat((x_init, queries[:b].reshape(-1, 1)))
+        y = torch.cat((y_init, observations[:b].reshape(-1)))
 
         if len(x) == 0:
+            assert b == 0
 
             # Little hack: very rarely we start experiments with no initial points.
             # In this case, we _cannot_ compute any of the things we want to do below.
@@ -168,11 +193,12 @@ def visualize_trajectory_1D(results) -> None:
                 {
                     "gpr_post_mean": torch.zeros(len(x_linspace)),
                     "gpr_post_var": torch.zeros(len(x_linspace)),
-                    "queries": queries[: b + 1],
+                    "queries": queries[:b],
                     "x_init": x_init,
-                    "observations": observations[: b + 1],
+                    "observations": observations[:b],
                     "y_init": y_init,
                     "acqf": torch.zeros(len(x_linspace)),
+                    "map": [map_x[b].numpy(), map_y[b].item()],
                 }
             )
 
@@ -199,13 +225,16 @@ def visualize_trajectory_1D(results) -> None:
             {
                 "gpr_post_mean": gpr_post_mean,
                 "gpr_post_var": gpr_post_var,
-                "queries": queries[: b + 1],
+                "queries": queries[:b],
                 "x_init": x_init,
-                "observations": observations[: b + 1],
+                "observations": observations[:b],
                 "y_init": y_init,
                 "acqf": acqf_eval,
             }
         )
+
+        if b < n:
+            results[-1]["map"] = [map_x[b].numpy(), map_y[b].item()]
 
     # Create our plot
     fig = plt.figure(figsize=(10, 8))
@@ -244,7 +273,7 @@ def visualize_trajectory_1D(results) -> None:
             x_init,
             y_init,
             alpha=0.5,
-            color="black",
+            color="green",
             marker="x",
             s=100,
             label="init points",
@@ -253,7 +282,7 @@ def visualize_trajectory_1D(results) -> None:
             queries_at_b,
             observations_at_b,
             alpha=0.5,
-            color="green",
+            color="black",
             marker="x",
             s=100,
             label="observations",
@@ -261,6 +290,8 @@ def visualize_trajectory_1D(results) -> None:
 
         if b < n:
             ax.scatter(queries[b], observations[b], color="r", label="Next")
+            assert "map" in r
+            ax.scatter(r["map"][0], r["map"][1], color="g", label="MAP")
 
         ax.plot(
             x_linspace,
@@ -310,7 +341,6 @@ def visualize_trajectory_2D(result_file_content) -> None:
     :file: file path (string)
     :returns: None
     """
-
     # Load configurations and results.
     exp_params = result_file_content["conf"]
     acqf_options = conf.get_entries_with_tag(exp_params, "acqf-option")
@@ -326,31 +356,37 @@ def visualize_trajectory_2D(result_file_content) -> None:
     Y = problem(torch.stack((X1, X2), dim=2))
 
     x_init, y_init = get_init_points(result_file_content)
-    queries, observations = torch.cat(result_file_content["query"]), torch.cat(
-        result_file_content["feedback"]
-    )
+    queries = torch.stack(result_file_content["query"])
+    observations = torch.stack(result_file_content["feedback"])
+
+    map_x = get_map(result_file_content)
+    map_y = problem(map_x)
 
     n = len(observations)
 
     # Generate results for each step.
     results = []
-    for b in range(-1, n):
+    for b in range(n + 1):
 
-        x = torch.cat((x_init, queries[: b + 1]))
-        y = torch.cat((y_init, observations[: b + 1]))
+        qs = queries[:b].reshape(-1, 2)
+        x = torch.cat((x_init, qs))
+        obs = observations[:b].reshape(-1)
+        y = torch.cat((y_init, obs))
 
         if len(x) == 0:
+            assert b == 0
             # Weird corner case: there is nothing to plot.
             results.append(
                 {
                     "gpr_post_mean": torch.zeros_like(Y),
                     "gpr_post_mean_dist": torch.zeros_like(Y),
                     "gpr_post_var": torch.zeros_like(Y),
-                    "queries": queries[: b + 1],
+                    "queries": qs,
                     "x_init": x_init,
-                    "observations": observations[: b + 1],
+                    "observations": obs,
                     "y_init": y_init,
                     "acqf": torch.zeros_like(Y),
+                    "map": [map_x[b].numpy(), map_y[b].item()],
                 }
             )
 
@@ -372,13 +408,16 @@ def visualize_trajectory_2D(result_file_content) -> None:
                 "gpr_post_mean": gpr_post_mean.detach().numpy(),
                 "gpr_post_mean_dist": (gpr_post_mean - Y).detach().numpy(),
                 "gpr_post_var": gpr_post_var.detach().numpy(),
-                "queries": queries[: b + 1],
+                "queries": qs,
                 "x_init": x_init,
-                "observations": observations[: b + 1],
+                "observations": obs,
                 "y_init": y_init,
                 "acqf": acqf_eval.detach().numpy(),
             }
         )
+
+        if b < n:
+            results[-1]["map"] = [map_x[b].numpy(), map_y[b].item()]
 
     # Setup figures
     fig = plt.figure(figsize=(10, 8))
@@ -422,9 +461,9 @@ def visualize_trajectory_2D(result_file_content) -> None:
                 ]
             )
 
-            axs[k].scatter(x[:, 0], x[:, 1], color="green", label="observations")
+            axs[k].scatter(x[:, 0], x[:, 1], color="black", label="observations")
             axs[k].scatter(
-                x_init[:, 0], x_init[:, 1], color="purple", label="initial points"
+                x_init[:, 0], x_init[:, 1], color="green", label="initial points"
             )
 
         axs["ax_3d"].clear()
@@ -450,18 +489,24 @@ def visualize_trajectory_2D(result_file_content) -> None:
         )
         axs["ax_3d"].scatter(x[:, 0], x[:, 1], y, color="black", label="observations")
         axs["ax_3d"].scatter(
-            x_init[:, 0], x_init[:, 1], y_init, color="blue", label="initial points"
+            x_init[:, 0], x_init[:, 1], y_init, color="green", label="initial points"
         )
 
         if b < n:
-            [next_x_1, next_x_2], next_y = queries[b], observations[b]
+            assert "map" in r
+            map_x, map_y = r["map"]
+
+            next_x, next_y = queries[b], observations[b]
 
             for k in contour_vals:
-                axs[k].scatter(next_x_1, next_x_2, color="orange")
+                axs[k].scatter(next_x[:, 0], next_x[:, 1], color="orange")
+                axs[k].scatter(map_x[0], map_x[1], color="red")
 
             axs["ax_3d"].scatter(
-                next_x_1, next_x_2, next_y, color="orange", label="next"
+                next_x[:, 0], next_x[:, 1], next_y, color="orange", label="next"
             )
+
+            axs["ax_3d"].scatter(map_x[0], map_x[1], map_y, color="red", label="MAP")
 
         axs["ax_3d"].legend()
         fig.canvas.draw_idle()
@@ -509,15 +554,17 @@ def visualize_moo(results):
 
     # Get data from file.
     queries = torch.cat(results["query"])
-    utilities = torch.cat([r["utility"] for r in results["feedback"]])
     objectives = torch.cat(
         [
             torch.tensor([list(q.values()) for q in r["objectives"].values()])
             for r in results["feedback"]
         ]
     )
+    utilities = torch.cat([r["utility"] for r in results["feedback"]])
 
-    # TODO: plot true utilities as line and plot observations as points.
+    map_x = get_map(results)
+    map_obj = problem(map_x)
+    map_u = utility_function(map_obj)
 
     assert len(queries) == len(utilities) == len(objectives)
 
@@ -532,6 +579,15 @@ def visualize_moo(results):
             "next_x": queries[t] if t < n else None,
             "next_u": utilities[t] if t < n else None,
             "next_o": objectives[t] if t < n else None,
+            "map": (
+                {
+                    "u": map_u[t].item(),
+                    "obj": map_obj[t].tolist(),
+                    "x": map_x[t].tolist(),
+                }
+                if t < n
+                else None
+            ),
         }
         for t in range(0, n + 1)
     ]
@@ -543,11 +599,12 @@ def visualize_moo(results):
     ax_x = fig.add_subplot(223) if dim == 2 else None
 
     # Utility plot.
-    ax_u.plot(utilities, label="Utility", color="black")
+    ax_u.plot(utilities.reshape(-1), label="Utility", color="black")
+    ax_u.plot(map_u.reshape(-1), label="MAP", color="brown")
     (lines_u_next,) = ax_u.plot(utilities[-1], n, "ro", label="Next")
     ax_u.set_xlim(0, n)
     ax_u.set_xlabel("budget")
-    ax_u.set_ylabel("u(x)")
+    ax_u.set_ylabel("u")
     ax_u.set_title("Utility")
     ax_u.legend()
 
@@ -567,12 +624,15 @@ def visualize_moo(results):
             objectives[-1, 0], objectives[-1, 1], "ro", label="Next"
         )
 
+        (scatter_map_o,) = ax_o.plot(torch.nan, torch.nan, "bo", label="MAP")
+
         ax_o.set_xlabel("o1")
         ax_o.set_ylabel("o2")
         ax_o.set_title("Objectives")
         ax_o.legend()
     else:
         scatter_observed_o, scatter_next_o = None, None
+        scatter_map_o = None
 
     # Query plot.
     if ax_x:
@@ -580,6 +640,7 @@ def visualize_moo(results):
         contourf_x = ax_x.contourf(*x_linspaces, U_x, cmap="cividis")
         plt.colorbar(contourf_x, ax=ax_x)
 
+        (scatter_map_x,) = ax_x.plot(torch.nan, torch.nan, "bo", label="MAP")
         (scattered_x,) = ax_x.plot(queries[:, 0], queries[:, 1], "ko")
 
         (scattered_next_x,) = ax_x.plot(
@@ -591,6 +652,7 @@ def visualize_moo(results):
     else:
         scattered_x = None
         scattered_next_x = None
+        scatter_map_x = None
 
     def draw_results(slider_input: float) -> int:
         """Populate figure for time step `slider_input`"""
@@ -600,6 +662,7 @@ def visualize_moo(results):
 
         x, o = r["x"], r["o"]
         next_x, next_u, next_o = r["next_x"], r["next_u"], r["next_o"]
+        map_data = r["map"]
 
         # Update observations.
         if scatter_observed_o:
@@ -612,14 +675,22 @@ def visualize_moo(results):
             lines_u_next.set_data([b], [next_u.item()])
             if scatter_next_o:
                 scatter_next_o.set_data([next_o[0]], [next_o[1]])
+            if scatter_map_o:
+                scatter_map_o.set_data([map_data["obj"][0]], [map_data["obj"][1]])
             if scattered_next_x:
                 scattered_next_x.set_data([next_x[0]], [next_x[1]])
+            if scatter_map_x:
+                scatter_map_x.set_data([map_data["x"][0]], [map_data["x"][1]])
         else:
-            lines_u_next.set_data([], [])
-            if scatter_next_o:
-                scatter_next_o.set_data([], [])
-            if scattered_next_x:
-                scattered_next_x.set_data([], [])
+            for plot in [
+                lines_u_next,
+                scatter_next_o,
+                scatter_next_o,
+                scatter_map_o,
+                scatter_map_x,
+            ]:
+                if plot:
+                    plot.set_data([], [])
 
         return 0
 

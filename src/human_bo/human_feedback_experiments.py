@@ -67,17 +67,9 @@ def pick_user(u, optimal_x: list[float], problem: SyntheticTestFunction) -> User
     :optimal_x: optimal x values
     :problem: The underlying function to optimize for
     """
-    user_mapping: dict[str, UserModel] = {
-        "oracle": oracle,
-        "gauss": GaussianUserModel(
-            optimal_x,
-            problem._bounds,
-        ),
-    }
+    if u == "oracle":
+        return oracle
+    if u == "gauss":
+        return GaussianUserModel(optimal_x, problem._bounds)
 
-    try:
-        return user_mapping[u]
-    except KeyError as error:
-        raise KeyError(
-            f"{u} is not an accepted user model (not in {user_mapping.keys()})"
-        ) from error
+    raise ValueError(f"{u} is not an accepted user model.")

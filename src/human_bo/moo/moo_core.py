@@ -64,13 +64,12 @@ class MOOEvaluation(interaction_loops.Evaluation):
         feedback_stats: dict[str, Any],
         **kwargs,
     ) -> tuple[Any, dict[str, Any]]:
-        del feedback, kwargs
+        del feedback, feedback_stats, kwargs
 
         objectives_true = self.moo_function(query, noise=False)
         utility_true = self.utility_function(objectives_true)
 
         self.u_max = max(self.u_max, utility_true.max().item())
-        # TODO: implement regret tracking.
 
         evaluation = {
             "utility_true": utility_true,
@@ -79,9 +78,13 @@ class MOOEvaluation(interaction_loops.Evaluation):
                 f"query {i}": {f"obj {j}": o for j, o in enumerate(v)}
                 for i, v in enumerate(objectives_true)
             },
-            "query_stats": query_stats,
-            "feedback_stats": feedback_stats,
         }
+
+        if "map_arg_max" in query_stats:
+            objectives_map_arg_max = self.moo_function(
+                query_stats["map_arg_max"], noise=False
+            )
+            evaluation["map_max"] = self.utility_function(objectives_map_arg_max)
 
         self.step += 1
         self.report_step(evaluation, self.step)
@@ -120,12 +123,10 @@ def create_acqf(
     **acqf_options,
 ) -> AcquisitionFunction:
     if acqf == "UCB":
-        if "ucb_beta" not in acqf_options:
-            ValueError(
-                f"Cannot initiate UCB without `ucb_beta` defined in {acqf_options}"
-            )
-        ucb_beta = acqf_options["ucb_beta"]
-        return monte_carlo.qUpperConfidenceBound(model, ucb_beta, objective=objective)
+        assert "ucb_beta" in acqf_options
+        return monte_carlo.qUpperConfidenceBound(
+            model, acqf_options["ucb_beta"], objective=objective
+        )
     if acqf == "EI":
         assert x is not None
         return qLogNoisyExpectedImprovement(model, x, objective=objective)

@@ -17,8 +17,8 @@ class Zhou(test_functions.SyntheticTestFunction):
         def phi_zou(X: torch.Tensor) -> torch.Tensor:
             return (2 * torch.pi) ** (-0.5) * torch.exp(-0.5 * X**2)
 
-        part1 = 10 * (X[:, 0] - 1 / 3)
-        part2 = 10 * (X[:, 0] - 2 / 3)
+        part1 = 10 * (X[..., 0] - 1 / 3)
+        part2 = 10 * (X[..., 0] - 2 / 3)
         return 5 * (phi_zou(part1) + phi_zou(part2))
 
 
@@ -31,7 +31,7 @@ class Forrester(test_functions.SyntheticTestFunction):
     _optimal_value = 6.020738786441099
 
     def evaluate_true(self, X: torch.Tensor) -> torch.Tensor:
-        return -((6 * X[:, 0] - 2) ** 2) * torch.sin(12 * X[:, 0] - 4)
+        return -((6 * X[..., 0] - 2) ** 2) * torch.sin(12 * X[..., 0] - 4)
 
 
 def pick_test_function(func: str, noise: float) -> test_functions.SyntheticTestFunction:
@@ -41,30 +41,32 @@ def pick_test_function(func: str, noise: float) -> test_functions.SyntheticTestF
     :noise: standard deviation of the noise
     """
 
-    test_function_mapping: dict[str, test_functions.SyntheticTestFunction] = {
-        "Forrester": Forrester(noise_std=noise),
-        "Zhou": Zhou(noise_std=noise),
-        "Hartmann": test_functions.Hartmann(negate=True, noise_std=noise),
-        "Branin": test_functions.Branin(negate=True, noise_std=noise),
-        "Rosenbrock2D": test_functions.Rosenbrock(
+    if func == "Forrester":
+        return Forrester(noise_std=noise)
+    if func == "Zhou":
+        return Zhou(noise_std=noise)
+    if func == "Hartmann":
+        return test_functions.Hartmann(negate=True, noise_std=noise)
+    if func == "Branin":
+        return test_functions.Branin(negate=True, noise_std=noise)
+    if func == "Rosenbrock2D":
+        return test_functions.Rosenbrock(
             dim=2, negate=True, bounds=[(-5.0, 5.0), (-5.0, 5.0)], noise_std=noise
-        ),
-        "Ackley1D": test_functions.Ackley(dim=1, noise_std=noise, negate=True),
-        "DixonPrice1D": test_functions.DixonPrice(dim=1, noise_std=noise, negate=True),
-        "Griewank1D": test_functions.Griewank(dim=1, noise_std=noise, negate=True),
-        "Levy1D": test_functions.Levy(dim=1, noise_std=noise, negate=True),
-        "Rastrigin1D": test_functions.Rastrigin(dim=1, noise_std=noise, negate=True),
-        "StyblinskiTang1D": test_functions.StyblinskiTang(
-            dim=1, noise_std=noise, negate=True
-        ),
-    }
+        )
+    if func == "Ackley1D":
+        return test_functions.Ackley(dim=1, noise_std=noise, negate=True)
+    if func == "DixonPrice1D":
+        return test_functions.DixonPrice(dim=1, noise_std=noise, negate=True)
+    if func == "Griewank1D":
+        return test_functions.Griewank(dim=1, noise_std=noise, negate=True)
+    if func == "Levy1D":
+        return test_functions.Levy(dim=1, noise_std=noise, negate=True)
+    if func == "Rastrigin1D":
+        return test_functions.Rastrigin(dim=1, noise_std=noise, negate=True)
+    if func == "StyblinskiTang1D":
+        return test_functions.StyblinskiTang(dim=1, noise_std=noise, negate=True)
 
-    try:
-        return test_function_mapping[func]
-    except KeyError as error:
-        raise KeyError(
-            f"{func} is not an accepted (single objective) test function (not in {test_function_mapping.keys()})"
-        ) from error
+    raise ValueError(f"{func} is not an accepted (single objective) test function")
 
 
 def pick_moo_test_function(
@@ -76,13 +78,7 @@ def pick_moo_test_function(
     :noise: standard deviations of the noise, None means no noise.
     """
 
-    test_function_mapping: dict[str, base.MultiObjectiveTestProblem] = {
-        "BraninCurrin": test_functions.BraninCurrin(noise_std=noise),
-    }
+    if func == "BraninCurrin":
+        return test_functions.BraninCurrin(noise_std=noise)
 
-    try:
-        return test_function_mapping[func]
-    except KeyError as error:
-        raise KeyError(
-            f"{func} is not an accepted MOO test function (not in {test_function_mapping.keys()})"
-        ) from error
+    raise ValueError(f"{func} is not an accepted MOO test function")

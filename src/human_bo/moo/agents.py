@@ -9,7 +9,7 @@ from typing import Any
 
 import torch
 from botorch import fit, models, optim
-from botorch.acquisition import objective
+from botorch.acquisition import monte_carlo, objective
 from botorch.models.transforms import input as input_transform
 from botorch.models.transforms import outcome as outcome_transform
 from gpytorch.mlls import sum_marginal_log_likelihood
@@ -26,8 +26,8 @@ class UtilityBO(interaction_loops.Agent):
         self.u = torch.Tensor()
 
     def pick_query(self) -> tuple[Any, dict[str, Any]]:
-        query, acqf_val = self.bo.pick_queries(self.x, self.u)
-        return query, {"acqf_value": acqf_val}
+        query, stats = self.bo.pick_queries(self.x, self.u)
+        return query, stats
 
     def observe(self, query, feedback, evaluation) -> None:
         del evaluation
@@ -79,7 +79,7 @@ class ObjectiveLearner(interaction_loops.Agent):
             print(
                 "WARN: PlainBO::pick_queries is returning randomly because of empty x."
             )
-            return core.random_queries(self.bounds), {"acqf_value": torch.Tensor(0)}
+            return core.random_queries(self.bounds), {}
 
         # Fit models to data.
         gprs = [
@@ -101,11 +101,15 @@ class ObjectiveLearner(interaction_loops.Agent):
             )
         )
 
+        objective_function = objective.GenericMCObjective(
+            lambda Y, X: self.utility_function(Y)
+        )
+
         # Run acquisition function on models.
         acqf_func = moo_core.create_acqf(
             self.acqf,
             model,
-            objective.GenericMCObjective(lambda Y, X: self.utility_function(Y)),
+            objective_function,
             self.x,
             **self.acqf_options,
         )
@@ -117,7 +121,16 @@ class ObjectiveLearner(interaction_loops.Agent):
             num_restarts=10,
             raw_samples=512,
         )
-        return candidates, {"acqf_value": acqf_val}
+
+        map_arg_max, _ = optim.optimize_acqf(
+            acq_function=monte_carlo.qSimpleRegret(model, objective=objective_function),
+            bounds=self.bounds,
+            q=1,
+            num_restarts=10,
+            raw_samples=512,
+        )
+
+        return candidates, {"acqf_value": acqf_val, "map_arg_max": map_arg_max[0]}
 
     def observe(self, query, feedback, evaluation) -> None:
         del evaluation

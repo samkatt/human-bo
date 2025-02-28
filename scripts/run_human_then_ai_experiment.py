@@ -88,6 +88,7 @@ def main():
         acqf_options,
     )
     res["user_conf"] = user_conf
+    res["conf"]["experiment_type"] = "human-picks"
 
     # Run actual experiment.
     print(f"Running experiment for {path}")
@@ -113,8 +114,8 @@ class AI(interaction_loops.Agent):
         self.x, self.y = x_init, y_init
 
     def pick_query(self) -> tuple[Any, dict[str, Any]]:
-        query, val = self.bo.pick_queries(self.x, self.y)
-        return query, {"acqf_value": val}
+        query, query_stats = self.bo.pick_queries(self.x, self.y)
+        return query, query_stats
 
     def observe(self, query, feedback, evaluation) -> None:
         del query, evaluation
@@ -157,22 +158,25 @@ class Evaluation(interaction_loops.Evaluation):
         feedback_stats: dict[str, Any],
         **kwargs,
     ) -> tuple[Any, dict[str, Any]]:
-        del feedback, query_stats
+        del feedback
 
         y_true = self.problem_function(query, noise=False)
 
         self.y_max = max(self.y_max, y_true.max().item())
-        regret = self.problem_function.optimal_value - self.y_max
 
         evaluation = {
             "y_true": y_true,
             "y_max": self.y_max,
-            "regret": regret,
-            "ai_acqf_val": kwargs["ai_stats"]["acqf_value"],
         }
 
+        if "map_arg_max" in query_stats:
+            evaluation["regret"] = self.problem_function(
+                query_stats["map_arg_max"], noise=False
+            )
         if "acqf_value" in feedback_stats:
             evaluation["user_acqf_val"] = feedback_stats["acqf_value"]
+        if "acqf_value" in kwargs["ai_stats"]:
+            evaluation["ai_acqf_val"] = kwargs["ai_stats"]["acqf_value"]
 
         # In this problem, the user is allowed to pick different number of queries.
         # To respect this, we keep track of number of queries.

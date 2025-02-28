@@ -90,6 +90,7 @@ def main():
     print(f"Running experiment for {path}")
     res = interaction_loops.basic_loop(ai, human, evaluation, exp_params["budget"])
     res["conf"] = exp_params
+    res["conf"]["experiment_type"] = "human-feedback"
     res["initial_points"] = {"x": x_init, "y": y_init}
 
     torch.save(res, path)
@@ -112,7 +113,9 @@ class Human(interaction_loops.Problem):
         y_observed = self.problem_function(query)
         feedback = self.user(query, y_observed)
 
-        return feedback, {"y_observed": y_observed}
+        y_true = self.problem_function(query, noise=False)
+
+        return feedback, {"y_observed": y_observed, "y_true": y_true}
 
     def observe(self, query, feedback, evaluation) -> None:
         del query, feedback, evaluation
@@ -133,20 +136,21 @@ class Evaluation(interaction_loops.Evaluation):
         feedback_stats: dict[str, Any],
         **kwargs,
     ) -> tuple[Any, dict[str, Any]]:
-        del feedback, kwargs
+        del feedback, feedback_stats, kwargs
 
         y_true = self.problem_function(query, noise=False)
 
         self.y_max = max(self.y_max, y_true.max().item())
-        regret = self.problem_function.optimal_value - self.y_max
 
         evaluation = {
             "y_true": y_true,
             "y_max": self.y_max,
-            "regret": regret,
-            "query_stats": query_stats,
-            "feedback_stats": feedback_stats,
         }
+
+        if "map_arg_max" in query_stats:
+            evaluation["regret"] = self.problem_function(
+                query_stats["map_arg_max"], noise=False
+            )
 
         self.step += 1
         self.report_step(evaluation, self.step)

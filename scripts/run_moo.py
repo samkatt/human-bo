@@ -77,6 +77,7 @@ def main():
     res = interaction_loops.basic_loop(agent, problem, evaluation, exp_params["budget"])
 
     res["conf"] = exp_params
+    res["conf"]["experiment_type"] = "moo"
 
     torch.save(res, path)
     print(f"Done experiments, saved results in {path}")

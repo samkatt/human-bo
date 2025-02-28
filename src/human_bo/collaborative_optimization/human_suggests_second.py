@@ -32,8 +32,8 @@ class BayesOptUser(interaction_loops.User):
         self.x, self.y = x_init, y_init
 
     def pick_action(self, query) -> tuple[Any, dict[str, Any]]:
-        user_query, val = self.bo.pick_queries(self.x, self.y)
-        return torch.cat((query, user_query)), {"acqf_value": val}
+        user_query, user_query_stats = self.bo.pick_queries(self.x, self.y)
+        return torch.cat((query, user_query)), user_query_stats
 
     def observe(self, action, feedback, evaluation) -> None:
         del evaluation
@@ -65,20 +65,20 @@ class RandomUser(interaction_loops.User):
 def create_user(
     user: str, f, kernel: str, acqf: str, n_init: int, acqf_options: dict[str, Any]
 ) -> tuple[interaction_loops.User, dict[str, Any]]:
-    match user:
-        case "random":
-            return RandomUser(f._bounds), {}
-        case "bo":
-            x_init, y_init = core.sample_initial_points(f, f._bounds, n_init)
-            return BayesOptUser(
-                f._bounds,
-                kernel,
-                acqf,
-                x_init,
-                y_init,
-                acqf_options,
-            ), {"initial_points": {"x": x_init, "y": y_init}}
-        case "noop":
-            return NoopUser(), {}
+    """Creates a user for the `interaction_loops.basic_loop` (`interaction_loops.User`) expects."""
+    if user == "random":
+        return RandomUser(f._bounds), {}
+    if user == "bo":
+        x_init, y_init = core.sample_initial_points(f, f._bounds, n_init)
+        return BayesOptUser(
+            f._bounds,
+            kernel,
+            acqf,
+            x_init,
+            y_init,
+            acqf_options,
+        ), {"initial_points": {"x": x_init, "y": y_init}}
+    if user == "noop":
+        return NoopUser(), {}
 
     raise ValueError(f"No user model for {user}")

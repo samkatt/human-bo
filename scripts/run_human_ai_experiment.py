@@ -77,6 +77,7 @@ def main():
         exp_params["acqf"],
         x_init,
         y_init,
+        acqf_options=conf.get_entries_with_tag(exp_params, "acqf-option"),
     )
     human = Human(
         exp_params["user"],

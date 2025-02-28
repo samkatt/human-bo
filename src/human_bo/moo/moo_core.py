@@ -3,12 +3,9 @@
 from typing import Any, Callable
 
 import torch
-from botorch.acquisition import (
-    AcquisitionFunction,
-    monte_carlo,
-    objective as botorch_objective,
-    qLogNoisyExpectedImprovement,
-)
+from botorch.acquisition import AcquisitionFunction, monte_carlo
+from botorch.acquisition import objective as botorch_objective
+from botorch.acquisition import qLogNoisyExpectedImprovement
 from botorch.models import model as botorch_model
 from botorch.posteriors import posterior
 from botorch.posteriors import torch as torch_posterior
@@ -120,9 +117,15 @@ def create_acqf(
     model: botorch_model.Model,
     objective: botorch_objective.GenericMCObjective,
     x: torch.Tensor | None,
+    **acqf_options,
 ) -> AcquisitionFunction:
     if acqf == "UCB":
-        return monte_carlo.qUpperConfidenceBound(model, 0.2, objective=objective)
+        if "ucb_beta" not in acqf_options:
+            ValueError(
+                f"Cannot initiate UCB without `ucb_beta` defined in {acqf_options}"
+            )
+        ucb_beta = acqf_options["ucb_beta"]
+        return monte_carlo.qUpperConfidenceBound(model, ucb_beta, objective=objective)
     if acqf == "EI":
         assert x is not None
         return qLogNoisyExpectedImprovement(model, x, objective=objective)

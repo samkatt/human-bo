@@ -42,6 +42,12 @@ CONFIG: dict[str, dict[str, Any]] = {
         "tags": {"experiment-parameter"},
         "parser-arguments": {"default": "EI", "choices": {"UCB", "MES", "EI"}},
     },
+    "ucb_beta": {
+        "type": float,
+        "help": "Exploration constant used in UCB",
+        "tags": {"acqf-option"},
+        "parser-arguments": {"default": 0.2},
+    },
     "problem": {
         "type": str,
         "shorthand": "p",
@@ -87,16 +93,25 @@ CONFIG: dict[str, dict[str, Any]] = {
 }
 
 
+def get_entries_with_tag(
+    exp_params: dict[str, Any],
+    tag: str,
+    exp_conf: dict[str, dict[str, Any]] | None = None,
+):
+    """Returns {k: v} in `exp_params` of entries with keys that have `tag` in `exp_conf`"""
+    if exp_conf is None:
+        exp_conf = CONFIG
+    return {
+        k: v
+        for k, v in exp_params.items()
+        if k in exp_conf and tag in exp_conf[k]["tags"]
+    }
+
+
 def get_values_with_tag(
     exp_params: dict[str, Any],
     tag: str,
     exp_conf: dict[str, dict[str, Any]] | None = None,
 ) -> list[str]:
-    """Returns values in `exp_params` of entries with keys that have `tag` in `exp_conf"""
-    if exp_conf is None:
-        exp_conf = CONFIG
-    return [
-        str(v)
-        for k, v in exp_params.items()
-        if k in exp_conf and tag in exp_conf[k]["tags"]
-    ]
+    """Returns values in `exp_params` of entries with keys that have `tag` in `exp_conf`"""
+    return [str(v) for v in get_entries_with_tag(exp_params, tag, exp_conf).values()]

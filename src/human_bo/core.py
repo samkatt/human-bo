@@ -3,7 +3,7 @@
 from typing import Any, Callable
 
 import torch
-from botorch.acquisition import analytic, qMaxValueEntropy, qLogNoisyExpectedImprovement
+from botorch.acquisition import analytic, qLogNoisyExpectedImprovement, qMaxValueEntropy
 from botorch.fit import fit_gpytorch_mll
 from botorch.models import SingleTaskGP, model
 from botorch.models.transforms import input as input_transform
@@ -16,7 +16,11 @@ from human_bo import interaction_loops
 
 
 def create_acqf(
-    acqf: str, x: torch.Tensor, botorch_model: model.Model, bounds: torch.Tensor
+    acqf: str,
+    x: torch.Tensor,
+    botorch_model: model.Model,
+    bounds: torch.Tensor,
+    **acqf_options,
 ) -> analytic.AcquisitionFunction:
     """Instantiate the given acqf.
 
@@ -24,6 +28,7 @@ def create_acqf(
     :x: observed x values.
     :botorch_model: the model (GP) used by the acquisition function
     :bounds: [x,y] bounds on the function
+    :acqf_options: depend on chosen acqf. E.g. for "UCB" we expect "ucb_beta"
     """
 
     # create MES acquisition function
@@ -33,7 +38,9 @@ def create_acqf(
     mes = qMaxValueEntropy(botorch_model, mes_candidate_set)
 
     acqf_mapping: dict[str, analytic.AcquisitionFunction] = {
-        "UCB": analytic.UpperConfidenceBound(botorch_model, beta=0.2),
+        "UCB": analytic.UpperConfidenceBound(
+            botorch_model, beta=acqf_options["ucb_beta"]
+        ),
         "MES": mes,
         "EI": qLogNoisyExpectedImprovement(botorch_model, x),
     }
@@ -139,6 +146,7 @@ class PlainBO:
         kernel: str,
         acqf: str,
         bounds: list[tuple[float, float]],
+        acqf_options: dict[str, Any],
         num_restarts: int = 10,
         raw_samples: int = 512,
     ):
@@ -151,6 +159,8 @@ class PlainBO:
 
         self.bounds = torch.tensor(bounds).T
         self.dim = self.bounds.shape[1]
+
+        self.acqf_options = acqf_options
 
     def pick_queries(
         self, x: torch.Tensor, y: torch.Tensor
@@ -166,10 +176,7 @@ class PlainBO:
 
         candidates, acqf_val = optimize_acqf(
             acq_function=create_acqf(
-                self.acqf,
-                x,
-                gp,
-                self.bounds,
+                self.acqf, x, gp, self.bounds, **self.acqf_options
             ),
             bounds=self.bounds,
             q=1,  # batch size, i.e. we only query one point
@@ -184,9 +191,15 @@ class BO_Agent(interaction_loops.Agent):
     """Simple Bayes optimization Agent."""
 
     def __init__(
-        self, bounds, kernel: str, acqf: str, x_init: torch.Tensor, y_init: torch.Tensor
+        self,
+        bounds,
+        kernel: str,
+        acqf: str,
+        x_init: torch.Tensor,
+        y_init: torch.Tensor,
+        acqf_options: dict[str, Any],
     ):
-        self.bo = PlainBO(kernel, acqf, bounds)
+        self.bo = PlainBO(kernel, acqf, bounds, acqf_options)
         self.x, self.y = x_init, y_init
 
     def pick_query(self) -> tuple[Any, dict[str, Any]]:

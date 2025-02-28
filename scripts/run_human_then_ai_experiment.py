@@ -68,8 +68,14 @@ def main():
     x_init_ai, y_init_ai = core.sample_initial_points(
         f, f._bounds, exp_params["n_init"]
     )
+    acqf_options = conf.get_entries_with_tag(exp_params, "acqf-option")
     agent = AI(
-        f._bounds, exp_params["kernel"], exp_params["acqf"], x_init_ai, y_init_ai
+        f._bounds,
+        exp_params["kernel"],
+        exp_params["acqf"],
+        x_init_ai,
+        y_init_ai,
+        acqf_options,
     )
     res["ai_conf"] = {"initial_points": {"x": x_init_ai, "y": y_init_ai}}
 
@@ -79,6 +85,7 @@ def main():
         exp_params["kernel"],
         exp_params["acqf"],
         exp_params["n_init"],
+        acqf_options,
     )
     res["user_conf"] = user_conf
 
@@ -99,8 +106,10 @@ def main():
 class AI(interaction_loops.Agent):
     """This is a simple Bayes optimization agent."""
 
-    def __init__(self, bounds, kernel, acqf, x_init, y_init):
-        self.bo = core.PlainBO(kernel, acqf, bounds)
+    def __init__(
+        self, bounds, kernel, acqf, x_init, y_init, acqf_options: dict[str, Any]
+    ):
+        self.bo = core.PlainBO(kernel, acqf, bounds, acqf_options)
         self.x, self.y = x_init, y_init
 
     def pick_query(self) -> tuple[Any, dict[str, Any]]:

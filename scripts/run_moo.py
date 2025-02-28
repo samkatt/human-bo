@@ -69,6 +69,7 @@ def main():
         exp_params["algorithm"],
         exp_params["kernel"],
         exp_params["acqf"],
+        acqf_options=conf.get_entries_with_tag(exp_params, "acqf-option"),
     )
     problem = moo_core.MOOProblem(moo_function, utility_function)
 

@@ -25,8 +25,10 @@ CONFIG = {
 
 
 class BayesOptUser(interaction_loops.User):
-    def __init__(self, bounds, kernel, acqf, x_init, y_init):
-        self.bo = core.PlainBO(kernel, acqf, bounds)
+    def __init__(
+        self, bounds, kernel, acqf, x_init, y_init, acqf_options: dict[str, Any]
+    ):
+        self.bo = core.PlainBO(kernel, acqf, bounds, acqf_options)
         self.x, self.y = x_init, y_init
 
     def pick_action(self, query) -> tuple[Any, dict[str, Any]]:
@@ -61,7 +63,7 @@ class RandomUser(interaction_loops.User):
 
 
 def create_user(
-    user: str, f, kernel: str, acqf: str, n_init: int
+    user: str, f, kernel: str, acqf: str, n_init: int, acqf_options: dict[str, Any]
 ) -> tuple[interaction_loops.User, dict[str, Any]]:
     match user:
         case "random":
@@ -74,6 +76,7 @@ def create_user(
                 acqf,
                 x_init,
                 y_init,
+                acqf_options,
             ), {"initial_points": {"x": x_init, "y": y_init}}
         case "noop":
             return NoopUser(), {}

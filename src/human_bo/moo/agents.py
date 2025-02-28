@@ -19,13 +19,8 @@ from human_bo.moo import moo_core
 
 
 class UtilityBO(interaction_loops.Agent):
-    def __init__(
-        self,
-        bounds,
-        kernel: str,
-        acqf: str,
-    ):
-        self.bo = core.PlainBO(kernel, acqf, bounds)
+    def __init__(self, bounds, kernel: str, acqf: str, acqf_options: dict[str, Any]):
+        self.bo = core.PlainBO(kernel, acqf, bounds, acqf_options)
 
         self.x = torch.Tensor()
         self.u = torch.Tensor()
@@ -59,11 +54,13 @@ class ObjectiveLearner(interaction_loops.Agent):
         kernel: str,
         acqf: str,
         num_objs: int,
+        acqf_options: dict[str, Any],
     ):
         assert num_objs > 1
 
         self.kernel = kernel
         self.acqf = acqf
+        self.acqf_options = acqf_options
 
         self.bounds = bounds
         self.dim = bounds.shape[1]
@@ -110,6 +107,7 @@ class ObjectiveLearner(interaction_loops.Agent):
             model,
             objective.GenericMCObjective(lambda Y, X: self.utility_function(Y)),
             self.x,
+            **self.acqf_options,
         )
 
         candidates, acqf_val = optim.optimize_acqf(
@@ -143,17 +141,19 @@ def create_AI(
     algorithm: str,
     kernel: str,
     acqf: str,
+    acqf_options: dict[str, Any],
 ) -> interaction_loops.Agent:
     """Creates an AI agent for MOO.
 
     This is where main difference in experiments happen, e.g.:
         - algorithm == "random" returns a random query agent.
         - algorithm == "bo" returns a BO (on utility) agent.
+        - algorithm == "objective-learner" learns objective but knows utility.
     """
     if algorithm == "random":
         return core.RandomAgent(moo_function.bounds)
     if algorithm == "bo":
-        return UtilityBO(moo_function._bounds, kernel, acqf)
+        return UtilityBO(moo_function._bounds, kernel, acqf, acqf_options)
     if algorithm == "objective-learner":
         return ObjectiveLearner(
             utility_function,
@@ -161,6 +161,7 @@ def create_AI(
             kernel,
             acqf,
             moo_function.num_objectives,
+            acqf_options,
         )
 
     raise ValueError(f"Algorithm {algorithm} is not supported.")

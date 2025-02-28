@@ -3,7 +3,7 @@
 from typing import Any, Callable
 
 import torch
-from botorch.acquisition import analytic, qMaxValueEntropy, qLogNoisyExpectedImprovement
+from botorch.acquisition import analytic, qMaxValueEntropy, qLogNoisyExpectedImprovement, monte_carlo
 from botorch.fit import fit_gpytorch_mll
 from botorch.models import SingleTaskGP, model
 from botorch.models.transforms import input as input_transform
@@ -33,7 +33,7 @@ def create_acqf(
     mes = qMaxValueEntropy(botorch_model, mes_candidate_set)
 
     acqf_mapping: dict[str, analytic.AcquisitionFunction] = {
-        "UCB": analytic.UpperConfidenceBound(botorch_model, beta=0.2),
+        "UCB": monte_carlo.qUpperConfidenceBound(botorch_model, beta=0.2),
         "MES": mes,
         "EI": qLogNoisyExpectedImprovement(botorch_model, x),
     }

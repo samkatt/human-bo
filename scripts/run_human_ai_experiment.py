@@ -90,6 +90,7 @@ def main():
     print(f"Running experiment for {path}")
     res = interaction_loops.basic_loop(ai, human, evaluation, exp_params["budget"])
     res["conf"] = exp_params
+    res["conf"]["experiment_type"] = "human-feedback"
     res["initial_points"] = {"x": x_init, "y": y_init}
 
     torch.save(res, path)
@@ -135,7 +136,7 @@ class Evaluation(interaction_loops.Evaluation):
         feedback_stats: dict[str, Any],
         **kwargs,
     ) -> tuple[Any, dict[str, Any]]:
-        del feedback, kwargs
+        del feedback, feedback_stats, kwargs
 
         y_true = self.problem_function(query, noise=False)
 
@@ -144,14 +145,11 @@ class Evaluation(interaction_loops.Evaluation):
         evaluation = {
             "y_true": y_true,
             "y_max": self.y_max,
-            "query_stats": query_stats,
-            "feedback_stats": feedback_stats,
         }
 
         if "map_arg_max" in query_stats:
-            # TODO: investigate why `unsqueeze`.
             evaluation["regret"] = self.problem_function(
-                query_stats["map_arg_max"].unsqueeze(0), noise=False
+                query_stats["map_arg_max"], noise=False
             )
 
         self.step += 1

@@ -64,7 +64,7 @@ class MOOEvaluation(interaction_loops.Evaluation):
         feedback_stats: dict[str, Any],
         **kwargs,
     ) -> tuple[Any, dict[str, Any]]:
-        del feedback, kwargs
+        del feedback, feedback_stats, kwargs
 
         objectives_true = self.moo_function(query, noise=False)
         utility_true = self.utility_function(objectives_true)
@@ -78,8 +78,6 @@ class MOOEvaluation(interaction_loops.Evaluation):
                 f"query {i}": {f"obj {j}": o for j, o in enumerate(v)}
                 for i, v in enumerate(objectives_true)
             },
-            "query_stats": query_stats,
-            "feedback_stats": feedback_stats,
         }
 
         if "map_arg_max" in query_stats:

@@ -101,11 +101,15 @@ class ObjectiveLearner(interaction_loops.Agent):
             )
         )
 
+        objective_function = objective.GenericMCObjective(
+            lambda Y, X: self.utility_function(Y)
+        )
+
         # Run acquisition function on models.
         acqf_func = moo_core.create_acqf(
             self.acqf,
             model,
-            objective.GenericMCObjective(lambda Y, X: self.utility_function(Y)),
+            objective_function,
             self.x,
             **self.acqf_options,
         )
@@ -119,7 +123,7 @@ class ObjectiveLearner(interaction_loops.Agent):
         )
 
         map_arg_max, _ = optim.optimize_acqf(
-            acq_function=monte_carlo.qSimpleRegret(model),
+            acq_function=monte_carlo.qSimpleRegret(model, objective=objective_function),
             bounds=self.bounds,
             q=1,
             num_restarts=10,

@@ -91,11 +91,6 @@ But I tend to just run `scripts/static_analysis.sh` and check the output.
 
 ### To do
 
-- [ ] Diff between evaluation and evaluation stats.
-- [ ] Update this to do.
-- [ ] Compute MAP mean (`https://botorch.org/docs/tutorials/bope/`).
-    - [ ] Visualize in all. (e.g. regret and utility plot)
-- [ ] Figure out first experiment: random vs human BO.
 - [ ] Remove all "mapping" factories: no need to create everything!
 - [ ] Fix (understanding of) negation in test functions.
 - [ ] Add visualisation to human-then-AI experiment.

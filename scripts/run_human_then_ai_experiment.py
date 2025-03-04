@@ -88,6 +88,7 @@ def main():
         acqf_options,
     )
     res["user_conf"] = user_conf
+    res["conf"]["experiment_type"] = "human-picks"
 
     # Run actual experiment.
     print(f"Running experiment for {path}")
@@ -170,7 +171,7 @@ class Evaluation(interaction_loops.Evaluation):
 
         if "map_arg_max" in query_stats:
             evaluation["regret"] = self.problem_function(
-                query_stats["map_arg_max"].unsqueeze(0), noise=False
+                query_stats["map_arg_max"], noise=False
             )
         if "acqf_value" in feedback_stats:
             evaluation["user_acqf_val"] = feedback_stats["acqf_value"]

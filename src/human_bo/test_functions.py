@@ -17,8 +17,8 @@ class Zhou(test_functions.SyntheticTestFunction):
         def phi_zou(X: torch.Tensor) -> torch.Tensor:
             return (2 * torch.pi) ** (-0.5) * torch.exp(-0.5 * X**2)
 
-        part1 = 10 * (X[:, 0] - 1 / 3)
-        part2 = 10 * (X[:, 0] - 2 / 3)
+        part1 = 10 * (X[..., 0] - 1 / 3)
+        part2 = 10 * (X[..., 0] - 2 / 3)
         return 5 * (phi_zou(part1) + phi_zou(part2))
 
 
@@ -31,7 +31,7 @@ class Forrester(test_functions.SyntheticTestFunction):
     _optimal_value = 6.020738786441099
 
     def evaluate_true(self, X: torch.Tensor) -> torch.Tensor:
-        return -((6 * X[:, 0] - 2) ** 2) * torch.sin(12 * X[:, 0] - 4)
+        return -((6 * X[..., 0] - 2) ** 2) * torch.sin(12 * X[..., 0] - 4)
 
 
 def pick_test_function(func: str, noise: float) -> test_functions.SyntheticTestFunction:

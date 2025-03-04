@@ -88,12 +88,3 @@ flake8 scripts src tests
 ```
 
 But I tend to just run `scripts/static_analysis.sh` and check the output.
-
-### To do
-
-- [ ] Remove all "mapping" factories: no need to create everything!
-- [ ] Fix (understanding of) negation in test functions.
-- [ ] Add visualisation to human-then-AI experiment.
-- [?] Update configuration
-    - [ ] Accept configuration file.
-    - [ ] Accept overwrites.

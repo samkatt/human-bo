@@ -36,48 +36,36 @@ def create_acqf(
     :acqf_options: depend on chosen acqf. E.g. for "UCB" we expect "ucb_beta"
     """
 
-    # create MES acquisition function
-    mes_n_candidates = 100  # size of candidate set to approximate MES
-    mes_candidate_set = torch.rand(mes_n_candidates, bounds.size(1))
-    mes_candidate_set = bounds[0] + (bounds[1] - bounds[0]) * mes_candidate_set
-    mes = qMaxValueEntropy(botorch_model, mes_candidate_set)
-
-    acqf_mapping: dict[str, analytic.AcquisitionFunction] = {
-        "UCB": monte_carlo.qUpperConfidenceBound(
+    if acqf == "UCB":
+        return monte_carlo.qUpperConfidenceBound(
             botorch_model, beta=acqf_options["ucb_beta"]
-        ),
-        "MES": mes,
-        "EI": qLogNoisyExpectedImprovement(botorch_model, x),
-    }
+        )
+    if acqf == "EI":
+        return qLogNoisyExpectedImprovement(botorch_model, x)
+    if acqf == "MES":
 
-    try:
-        return acqf_mapping[acqf]
-    except KeyError as error:
-        raise KeyError(
-            f"{acqf} is not an accepted acquisition function (not in {acqf_mapping.keys()})"
-        ) from error
+        mes_n_candidates = 100  # size of candidate set to approximate MES
+        mes_candidate_set = torch.rand(mes_n_candidates, bounds.size(1))
+        mes_candidate_set = bounds[0] + (bounds[1] - bounds[0]) * mes_candidate_set
+
+        return qMaxValueEntropy(botorch_model, mes_candidate_set)
+
+    raise ValueError(f"{acqf} is not an accepted acquisition function")
 
 
-def pick_kernel(ker: str, dim: int) -> kernels.ScaleKernel:
+def pick_kernel(ker: str, dim: int) -> kernels.ScaleKernel | None:
     """Instantiate the given kernel.
 
     :ker: string representation of the kernel
     :dim: number of dimensions of the kernel
     """
 
-    # ScaleKernel adds the amplitude hyper-parameter.
-    kernel_mapping: dict = {
-        "RBF": kernels.ScaleKernel(kernels.RBFKernel(ard_num_dims=dim)),
-        "Matern": kernels.ScaleKernel(kernels.MaternKernel(ard_num_dims=dim)),
-        "Default": None,
-    }
-
-    try:
-        return kernel_mapping[ker]
-    except KeyError as error:
-        raise KeyError(
-            f"{ker} is not an accepted kernel (not in {kernel_mapping.keys()})"
-        ) from error
+    if ker == "RBF":
+        return kernels.ScaleKernel(kernels.RBFKernel(ard_num_dims=dim))
+    if ker == "Matern":
+        return kernels.ScaleKernel(kernels.MaternKernel(ard_num_dims=dim))
+    if ker == "Default":
+        return None
 
 
 def random_queries(

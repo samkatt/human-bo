@@ -5,11 +5,13 @@ from typing import Any, Protocol
 
 class Agent(Protocol):
     def pick_query(self) -> tuple[Any, dict[str, Any]]: ...
+
     def observe(self, query, feedback, evaluation) -> None: ...
 
 
 class Problem(Protocol):
     def give_feedback(self, query) -> tuple[Any, dict[str, Any]]: ...
+
     def observe(self, query, feedback, evaluation) -> None: ...
 
 
@@ -26,6 +28,7 @@ class Evaluation(Protocol):
 
 class User(Protocol):
     def pick_action(self, query) -> tuple[Any, dict[str, Any]]: ...
+
     def observe(self, action, feedback, evaluation) -> None: ...
 
 

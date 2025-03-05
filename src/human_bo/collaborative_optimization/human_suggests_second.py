@@ -70,14 +70,17 @@ def create_user(
         return RandomUser(f._bounds), {}
     if user == "bo":
         x_init, y_init = core.sample_initial_points(f, f._bounds, n_init)
-        return BayesOptUser(
-            f._bounds,
-            kernel,
-            acqf,
-            x_init,
-            y_init,
-            acqf_options,
-        ), {"initial_points": {"x": x_init, "y": y_init}}
+        return (
+            BayesOptUser(
+                f._bounds,
+                kernel,
+                acqf,
+                x_init,
+                y_init,
+                acqf_options,
+            ),
+            {"initial_points": {"x": x_init, "y": y_init}},
+        )
     if user == "noop":
         return NoopUser(), {}
 

@@ -67,6 +67,8 @@ def pick_kernel(ker: str, dim: int) -> kernels.ScaleKernel | None:
     if ker == "Default":
         return None
 
+    raise ValueError(f"{ker} is not a supported kernel.")
+
 
 def random_queries(
     bounds: list[tuple[float, float]] | torch.Tensor, n: int = 1

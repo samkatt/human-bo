@@ -88,3 +88,7 @@ flake8 scripts src tests
 ```
 
 But I tend to just run `scripts/static_analysis.sh` and check the output.
+
+### To do
+
+- [ ] Make sure all tensors are created with `torch.tensor` (not `torch.Tensor`).

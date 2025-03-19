@@ -174,7 +174,7 @@ class PlainBO:
                 self.acqf, x, gp, self.bounds, **self.acqf_options
             ),
             bounds=self.bounds,
-            q=1,
+            q=2,
             num_restarts=10,
             raw_samples=512,
         )

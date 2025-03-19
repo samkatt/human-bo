@@ -70,7 +70,8 @@ class UtilityLearner(interaction_loops.Agent):
         #         f"WARN: PlainBO::pick_queries is returning randomly because of failing fit: {e}"
         #     )
         #     return core.random_queries(self.bounds_x), {}
-        model = moo_models.UnknownCompositeModel(self.f, self.x, self.u)
+        # model = moo_models.UnknownCompositeModel(self.f, self.x, self.u)
+        model = moo_models.BotorchEnsembleFromFunction(self.f, self.x, self.u)
         acqf_func = core.create_acqf(
             self.acqf,
             self.x,
@@ -82,7 +83,7 @@ class UtilityLearner(interaction_loops.Agent):
         candidates, acqf_val = optim.optimize_acqf(
             acq_function=acqf_func,
             bounds=self.bounds_x,
-            q=1,
+            q=2,
             num_restarts=10,
             raw_samples=512,
         )

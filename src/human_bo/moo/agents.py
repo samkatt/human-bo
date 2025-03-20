@@ -51,27 +51,14 @@ class UtilityLearner(interaction_loops.Agent):
 
     def pick_query(self) -> tuple[Any, dict[str, Any]]:
 
-        if self.x.numel() is 0 or self.x.shape[0] <= self.x.shape[1]:
-            print("WARN: UtilityLearner returning random query.")
+        if self.x.numel() == 0:
+            print(
+                "WARN: UtilityLearner returning random query because `self.x` is empty."
+            )
             return core.random_queries(self.bounds_x), {}
-        # # TODO: diagnose model (posterior)?
-        # try:
-        #     model = moo_models.UnknownCompositeModel(self.f, self.x, self.u)
-        # except ValueError as e:
-        #     # no `self.x`
-        #     breakpoint()
-        #     print(
-        #         f"WARN: PlainBO::pick_queries is returning randomly because of failing fit: {e}"
-        #     )
-        #     return core.random_queries(self.bounds_x), {}
-        # except torch._C._LinAlgError as e:
-        #     breakpoint()
-        #     print(
-        #         f"WARN: PlainBO::pick_queries is returning randomly because of failing fit: {e}"
-        #     )
-        #     return core.random_queries(self.bounds_x), {}
-        # model = moo_models.UnknownCompositeModel(self.f, self.x, self.u)
-        model = moo_models.BotorchEnsembleFromFunction(self.f, self.x, self.u)
+
+        model = moo_models.UnknownCompositeModel(self.f, self.x, self.u)
+
         acqf_func = core.create_acqf(
             self.acqf,
             self.x,
@@ -80,23 +67,23 @@ class UtilityLearner(interaction_loops.Agent):
             **self.acqf_options,
         )
 
+        # FIX: return these parameters to their correct values.
         candidates, acqf_val = optim.optimize_acqf(
             acq_function=acqf_func,
             bounds=self.bounds_x,
-            q=2,
-            num_restarts=10,
-            raw_samples=512,
+            q=1,
+            num_restarts=13,
+            raw_samples=511,
         )
 
         map_arg_max, _ = optim.optimize_acqf(
             acq_function=monte_carlo.qSimpleRegret(model),
             bounds=self.bounds_x,
             q=1,
-            num_restarts=10,
-            raw_samples=512,
+            num_restarts=13,
+            raw_samples=511,
         )
 
-        breakpoint()  # TODO: check if this is working.
         return candidates, {"acqf_val": acqf_val, "map_arg_max": map_arg_max[0]}
 
     def observe(self, query, feedback, evaluation) -> None:

@@ -11,6 +11,8 @@ dependencies = [
   "gpytorch",
   "matplotlib",
   "torch",
+  "tensorflow",
+  "trieste",
   "wandb",
 ]
 

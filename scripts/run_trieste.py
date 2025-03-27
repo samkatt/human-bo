@@ -46,6 +46,7 @@ def main():
         + [str(exp_params["seed"])]
     )
 
+    # FIX: probably remove `pt` suffix? Unless it is pickled?
     path = exp_params["save_dir"] + "/" + experiment_name + ".pt"
 
     utils.exit_if_exists(path)
@@ -77,7 +78,7 @@ def main():
     x_init = trieste_problem.search_space.sample(exp_params["n_init"])
     data_init = observer(x_init)
 
-    ai = TriesteBO(data_init, trieste_problem.search_space)
+    ai = TriesteBO(data_init, trieste_problem.search_space, exp_params["acqf"])
     # TODO: support noise.
     problem = Problem(observer)
 
@@ -164,13 +165,23 @@ class Evaluation(interaction_loops.Evaluation):
 class TriesteBO(interaction_loops.Agent):
 
     def __init__(
-        self, data: trieste.data.Dataset, search_space: trieste.space.SearchSpace
+        self,
+        data: trieste.data.Dataset,
+        search_space: trieste.space.SearchSpace,
+        acq_func: str,
     ):
-        # TODO: account for different acquisition functions.
         self.data = data
         self.search_space = search_space
         self.step = -1
-        self.ask_tell = None
+
+        # TODO: account for different acquisition functions.
+        self.trieste_acqf = trieste.acquisition.function.function.ExpectedImprovement(
+            self.search_space
+        )
+
+        self.ask_tell: (
+            trieste.ask_tell_optimization.AskTellOptimizerNoTraining | None
+        ) = None
 
     def pick_query(self) -> tuple[Any, dict[str, Any]]:
         self.step += 1
@@ -187,8 +198,12 @@ class TriesteBO(interaction_loops.Agent):
         model = trieste.models.gpflow.models.GaussianProcessRegression(
             trieste.models.gpflow.builders.build_gpr(self.data, self.search_space)
         )
+        acqf_rule = trieste.acquisition.rule.EfficientGlobalOptimization(
+            self.trieste_acqf
+        )
+
         self.ask_tell = trieste.ask_tell_optimization.AskTellOptimizerNoTraining(
-            self.search_space, self.data, model
+            self.search_space, self.data, model, acquisition_rule=acqf_rule
         )
 
         query = self.ask_tell.ask()
@@ -199,6 +214,9 @@ class TriesteBO(interaction_loops.Agent):
     def observe(self, query, feedback, evaluation) -> None:
         del query, evaluation
         self.data = self.data + feedback
+
+        # We will `tell` our observations if we used `self.ask_tell` to get the queries.
+        # We then set `self.ask_tell` to None, to make sure any mistaken use of this class is avoided.
         if not self.ask_tell is None:
             self.ask_tell.tell(feedback)
             self.ask_tell = None

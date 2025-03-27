@@ -62,7 +62,10 @@ def main():
     )
 
     # Create problem and evaluation.
-    trieste_problem = test_functions.pick_trieste_test_function(exp_params["problem"])
+    trieste_problem = test_functions.create_trieste_test_function(exp_params["problem"])
+    assert isinstance(
+        trieste_problem, trieste.objectives.single_objectives.SingleObjectiveTestProblem
+    )
     observer = trieste.objectives.utils.mk_observer(trieste_problem.objective)
 
     report_step = (
@@ -198,8 +201,8 @@ class TriesteBO(interaction_loops.Agent):
         model = trieste.models.gpflow.models.GaussianProcessRegression(
             trieste.models.gpflow.builders.build_gpr(self.data, self.search_space)
         )
-        acqf_rule = trieste.acquisition.rule.EfficientGlobalOptimization(
-            self.trieste_acqf
+        acqf_rule: trieste.acquisition.rule.AcquisitionRule = (
+            trieste.acquisition.rule.EfficientGlobalOptimization(self.trieste_acqf)
         )
 
         self.ask_tell = trieste.ask_tell_optimization.AskTellOptimizerNoTraining(
@@ -217,7 +220,7 @@ class TriesteBO(interaction_loops.Agent):
 
         # We will `tell` our observations if we used `self.ask_tell` to get the queries.
         # We then set `self.ask_tell` to None, to make sure any mistaken use of this class is avoided.
-        if not self.ask_tell is None:
+        if self.ask_tell is not None:
             self.ask_tell.tell(feedback)
             self.ask_tell = None
 

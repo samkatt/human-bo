@@ -16,8 +16,7 @@ def zhou(X, pi, exp):
     return 5 * (phi_zou(part1) + phi_zou(part2))
 
 
-# TODO: rename to ZhouBotorch
-class Zhou(test_functions.SyntheticTestFunction):
+class ZhouBotorch(test_functions.SyntheticTestFunction):
     """The Zhou (1-dimensional) function (https://www.sfu.ca/~ssurjano/zhou98.html)"""
 
     dim = 1
@@ -33,8 +32,7 @@ def forrester(X, sin):
     return -((6 * X[..., 0] - 2) ** 2) * sin(12 * X[..., 0] - 4)
 
 
-# TODO: rename to ForresterBotorch
-class Forrester(test_functions.SyntheticTestFunction):
+class ForresterBotorch(test_functions.SyntheticTestFunction):
     """The Forrester (1-dimensional) function (https://www.sfu.ca/~ssurjano/forretal08.html)"""
 
     dim = 1
@@ -46,8 +44,9 @@ class Forrester(test_functions.SyntheticTestFunction):
         return forrester(X, torch.sin)
 
 
-# TODO: rename to `create_`.
-def pick_test_function(func: str, noise: float) -> test_functions.SyntheticTestFunction:
+def create_test_function(
+    func: str, noise: float
+) -> test_functions.SyntheticTestFunction:
     """Instantiate the given function to optimize.
 
     :func: string description of the test function to return
@@ -55,9 +54,9 @@ def pick_test_function(func: str, noise: float) -> test_functions.SyntheticTestF
     """
 
     if func == "Forrester":
-        return Forrester(noise_std=noise)
+        return ForresterBotorch(noise_std=noise)
     if func == "Zhou":
-        return Zhou(noise_std=noise)
+        return ZhouBotorch(noise_std=noise)
     if func == "Hartmann":
         return test_functions.Hartmann(negate=True, noise_std=noise)
     if func == "Branin":
@@ -82,8 +81,7 @@ def pick_test_function(func: str, noise: float) -> test_functions.SyntheticTestF
     raise ValueError(f"{func} is not an accepted (single objective) test function")
 
 
-# TODO: rename to `create_`.
-def pick_moo_test_function(
+def create_moo_test_function(
     func: str, noise: list[float] | None
 ) -> base.MultiObjectiveTestProblem:
     """Instantiate the given multi-objective function to optimize.
@@ -98,8 +96,7 @@ def pick_moo_test_function(
     raise ValueError(f"{func} is not an accepted MOO test function")
 
 
-# TODO: rename to `create_`.
-def pick_trieste_test_function(
+def create_trieste_test_function(
     func: str,
 ) -> trieste.objectives.single_objectives.ObjectiveTestProblem:
     if func == "Levy1D":

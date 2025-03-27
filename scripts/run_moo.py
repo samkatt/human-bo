@@ -47,7 +47,7 @@ def main():
 
     torch.manual_seed(exp_params["seed"])
 
-    moo_function = test_functions.pick_moo_test_function(
+    moo_function = test_functions.create_moo_test_function(
         exp_params["problem"], exp_params["problem_noise"]
     )
     utility_function = moo_core.create_utility_function(

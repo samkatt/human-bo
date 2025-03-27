@@ -167,7 +167,7 @@ def visualize_trajectory_1D(data) -> None:
     exp_params = data["conf"]
     # TODO: plot acquisition values (make sure to save them first).
     # acqf_options = conf.get_entries_with_tag(exp_params, "acqf-option")
-    problem = test_functions.pick_trieste_test_function(exp_params["problem"])
+    problem = test_functions.create_trieste_test_function(exp_params["problem"])
     observer = trieste.objectives.utils.mk_observer(problem.objective)
 
     [x_min], [x_max] = problem.bounds
@@ -358,7 +358,7 @@ def visualize_trajectory_2D(data) -> None:
     # acqf_options = conf.get_entries_with_tag(exp_params, "acqf-option")
 
     exp_params = data["conf"]
-    problem = test_functions.pick_trieste_test_function(exp_params["problem"])
+    problem = test_functions.create_trieste_test_function(exp_params["problem"])
     observer = trieste.objectives.utils.mk_observer(problem.objective)
 
     # Pre-compute global variables.
@@ -559,7 +559,7 @@ def visualize_trajectory_2D(data) -> None:
 def visualize_moo(results):
     # Re-create problem and its dimensions.
     exp_params = results["conf"]
-    problem = test_functions.pick_moo_test_function(exp_params["problem"], noise=None)
+    problem = test_functions.create_moo_test_function(exp_params["problem"], noise=None)
     utility_function = moo_core.create_utility_function(
         exp_params["preference_weights"]
     )

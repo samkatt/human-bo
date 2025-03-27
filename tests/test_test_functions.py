@@ -10,20 +10,20 @@ from human_bo import test_functions
 
 def test_forrester():
     """Tests `test_functions.Forrester`"""
-    p = test_functions.Forrester()
+    p = test_functions.ForresterBotorch()
     assert p.optimal_value == pytest.approx(6.020738786441099)
 
 
 def test_create_moo_function():
     """Tests `test_functions.pick_moo_test_function`"""
-    p = test_functions.pick_moo_test_function("BraninCurrin", [0.2, 0.45])
+    p = test_functions.create_moo_test_function("BraninCurrin", [0.2, 0.45])
     p(torch.rand([4, 2]))
 
 
 def test_create_trieste_test_function():
-    """Tests `test_functions.pick_trieste_test_function`"""
+    """Tests `test_functions.create_trieste_test_function`"""
     for f in ["Zhou", "Forrester", "Levy1D"]:
-        p = test_functions.pick_trieste_test_function(f)
+        p = test_functions.create_trieste_test_function(f)
         assert isinstance(
             p, trieste.objectives.single_objectives.SingleObjectiveTestProblem
         )

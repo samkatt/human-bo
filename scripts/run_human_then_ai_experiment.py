@@ -50,7 +50,7 @@ def main():
     torch.manual_seed(exp_params["seed"])
 
     # Create problem and evaluation.
-    f = test_functions.pick_test_function(
+    f = test_functions.create_test_function(
         exp_params["problem"], exp_params["problem_noise"][0]
     )
     problem = Problem(f)

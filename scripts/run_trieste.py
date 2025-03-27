@@ -61,8 +61,7 @@ def main():
     )
 
     # Create problem and evaluation.
-    # TODO: consider different problems.
-    trieste_problem = test_functions.TriesteLevy1
+    trieste_problem = test_functions.pick_trieste_test_function(exp_params["problem"])
     observer = trieste.objectives.utils.mk_observer(trieste_problem.objective)
 
     report_step = (

@@ -1,12 +1,22 @@
 """Test functions that are not implemented in BoTorch."""
 
+import tensorflow as tf
 import torch
 import trieste
 from botorch import test_functions
 from botorch.test_functions import base
-import tensorflow as tf
 
 
+def zhou(X, pi, exp):
+    def phi_zou(X):
+        return (2 * pi) ** (-0.5) * exp(-0.5 * X**2)
+
+    part1 = 10 * (X[..., 0] - 1 / 3)
+    part2 = 10 * (X[..., 0] - 2 / 3)
+    return 5 * (phi_zou(part1) + phi_zou(part2))
+
+
+# TODO: rename to ZhouBotorch
 class Zhou(test_functions.SyntheticTestFunction):
     """The Zhou (1-dimensional) function (https://www.sfu.ca/~ssurjano/zhou98.html)"""
 
@@ -16,14 +26,14 @@ class Zhou(test_functions.SyntheticTestFunction):
     _optimal_value = 2.002595246981888
 
     def evaluate_true(self, X: torch.Tensor) -> torch.Tensor:
-        def phi_zou(X: torch.Tensor) -> torch.Tensor:
-            return (2 * torch.pi) ** (-0.5) * torch.exp(-0.5 * X**2)
-
-        part1 = 10 * (X[..., 0] - 1 / 3)
-        part2 = 10 * (X[..., 0] - 2 / 3)
-        return 5 * (phi_zou(part1) + phi_zou(part2))
+        return zhou(X, torch.pi, torch.exp)
 
 
+def forrester(X, sin):
+    return -((6 * X[..., 0] - 2) ** 2) * sin(12 * X[..., 0] - 4)
+
+
+# TODO: rename to ForresterBotorch
 class Forrester(test_functions.SyntheticTestFunction):
     """The Forrester (1-dimensional) function (https://www.sfu.ca/~ssurjano/forretal08.html)"""
 
@@ -33,9 +43,10 @@ class Forrester(test_functions.SyntheticTestFunction):
     _optimal_value = 6.020738786441099
 
     def evaluate_true(self, X: torch.Tensor) -> torch.Tensor:
-        return -((6 * X[..., 0] - 2) ** 2) * torch.sin(12 * X[..., 0] - 4)
+        return forrester(X, torch.sin)
 
 
+# TODO: rename to `create_`.
 def pick_test_function(func: str, noise: float) -> test_functions.SyntheticTestFunction:
     """Instantiate the given function to optimize.
 
@@ -71,6 +82,7 @@ def pick_test_function(func: str, noise: float) -> test_functions.SyntheticTestF
     raise ValueError(f"{func} is not an accepted (single objective) test function")
 
 
+# TODO: rename to `create_`.
 def pick_moo_test_function(
     func: str, noise: list[float] | None
 ) -> base.MultiObjectiveTestProblem:
@@ -86,10 +98,37 @@ def pick_moo_test_function(
     raise ValueError(f"{func} is not an accepted MOO test function")
 
 
-TriesteLevy1 = trieste.objectives.single_objectives.SingleObjectiveTestProblem(
-    name="Levy 1",
-    objective=lambda x: trieste.objectives.single_objectives.levy(x, 1),
-    search_space=trieste.space.Box([0.0], [1.0]),
-    minimizers=tf.constant([[11 / 20]], tf.float64),
-    minimum=tf.constant([0], tf.float64),
-)
+# TODO: rename to `create_`.
+def pick_trieste_test_function(
+    func: str,
+) -> trieste.objectives.single_objectives.ObjectiveTestProblem:
+    if func == "Levy1D":
+        return trieste.objectives.single_objectives.SingleObjectiveTestProblem(
+            name="Levy 1",
+            objective=lambda x: trieste.objectives.single_objectives.levy(x, 1),
+            search_space=trieste.space.Box([0.0], [1.0]),
+            minimizers=tf.convert_to_tensor([[11 / 20]]),
+            minimum=tf.convert_to_tensor([0]),
+        )
+    if func == "Zhou":
+        return trieste.objectives.single_objectives.SingleObjectiveTestProblem(
+            name="Zhou",
+            objective=lambda x: tf.reshape(
+                -zhou(x, tf.experimental.numpy.pi, tf.exp), [-1, 1]
+            ),
+            search_space=trieste.space.Box([0.0], [1.0]),
+            minimizers=tf.convert_to_tensor([[1 / 3], [2 / 3]]),
+            minimum=tf.convert_to_tensor([-2.002595246981888]),
+        )
+    if func == "Forrester":
+        return trieste.objectives.single_objectives.SingleObjectiveTestProblem(
+            name="Forrester",
+            objective=lambda x: tf.reshape(-forrester(x, tf.sin), [-1, 1]),
+            search_space=trieste.space.Box([0.0], [1.0]),
+            minimizers=tf.convert_to_tensor([[0.7572]]),
+            minimum=tf.convert_to_tensor([-6.020738786441099]),
+        )
+    if func == "Branin":
+        return trieste.objectives.single_objectives.Branin
+
+    raise ValueError(f"{func} is not an accepted Trieste test function")

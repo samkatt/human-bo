@@ -166,9 +166,8 @@ def visualize_trajectory_1D(data) -> None:
     # Load configurations and data.
     exp_params = data["conf"]
     # TODO: plot acquisition values (make sure to save them first).
-    # TODO: allow for any problem.
     # acqf_options = conf.get_entries_with_tag(exp_params, "acqf-option")
-    problem = test_functions.TriesteLevy1
+    problem = test_functions.pick_trieste_test_function(exp_params["problem"])
     observer = trieste.objectives.utils.mk_observer(problem.objective)
 
     [x_min], [x_max] = problem.bounds
@@ -376,8 +375,8 @@ def visualize_trajectory_2D(data) -> None:
     observations = data["results"]["observations"]
 
     if "map" in data["results"]:
-        map_arg_max = data["results"]["map"]["arg_max"]
-        map_max = data["results"]["map"]["max"]
+        map_arg_max = np.array(data["results"]["map"]["arg_max"])
+        map_max = np.array(data["results"]["map"]["max"])
     else:
         map_arg_max = np.full_like(queries, np.nan)
         map_max = np.full_like(observations, np.nan)
@@ -441,7 +440,7 @@ def visualize_trajectory_2D(data) -> None:
         )
 
         if b < n:
-            results[-1]["map"] = [map_arg_max[b].numpy(), map_max[b].item()]
+            results[-1]["map"] = [map_arg_max[b], map_max[b]]
 
     # Setup figures
     fig = plt.figure(figsize=(10, 8))
@@ -769,18 +768,12 @@ if __name__ == "__main__":
         if len(args.files) != 1:
             raise ValueError("Please only provide 1 file when plotting trajectory")
 
-        # FIX:
-        # file_content = torch.load(args.files[0], weights_only=True)
-
         with open(args.files[0], "rb") as f:
             file_content = pickle.load(f)
 
-        # FIX:
-        # x_dim = conf.CONFIG["problem"]["parser-arguments"]["choices"][
-        #     file_content["conf"]["problem"]
-        # ]["dims"]
-
-        x_dim = 1
+        x_dim = conf.CONFIG["problem"]["parser-arguments"]["choices"][
+            file_content["conf"]["problem"]
+        ]["dims"]
 
         is_moo = (
             "num_objectives"

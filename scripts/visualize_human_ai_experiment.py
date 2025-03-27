@@ -10,7 +10,7 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
-import torch  # TODO: remove.
+import torch
 import trieste
 from matplotlib.widgets import Slider
 
@@ -354,11 +354,11 @@ def visualize_trajectory_2D(data) -> None:
     :returns: None
     """
     # Load configurations and results.
-    # TODO: plot acquisition values (make sure to save them first).
+    # TODO: support plotting acquisition values.
     # acqf_options = conf.get_entries_with_tag(exp_params, "acqf-option")
 
-    # TODO: pick problem from config.
-    problem = trieste.objectives.single_objectives.Branin
+    exp_params = data["conf"]
+    problem = test_functions.pick_trieste_test_function(exp_params["problem"])
     observer = trieste.objectives.utils.mk_observer(problem.objective)
 
     # Pre-compute global variables.

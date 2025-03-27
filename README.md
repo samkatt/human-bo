@@ -94,3 +94,8 @@ But I tend to just run `scripts/static_analysis.sh` and check the output.
 - [ ] Make sure all tensors are created with `torch.tensor` (not `torch.Tensor`).
 - [ ] Make sure data visualized in scripts are saved nicely in the first place.
 - [ ] Update README.
+- [ ] Check if I need to update or train model specifically.
+- [ ] Update visualization to explicitly do Trieste.
+- [ ] Remove torch.
+    - [ ] Remove imports.
+    - [ ] Remove from dependencies.

@@ -78,7 +78,7 @@ def main():
     data_init = observer(x_init)
 
     ai = TriesteBO(data_init, trieste_problem.search_space)
-    # TODO: consider noise.
+    # TODO: support noise.
     problem = Problem(observer)
 
     print(f"Running experiment for {path}")
@@ -96,7 +96,7 @@ def main():
     }
 
     if "map_arg_max" in res["query_stats"][0]:
-        breakpoint()  # TODO: verify below.
+        breakpoint()  # TODO: support MAP.
         map_arg_max = np.stack([i["map_arg_max"] for i in res["query_stats"]])
         map_max = np.array(observer(tf.convert_to_tensor(map_arg_max)).observations)
         res["results"]["map"] = {"arg_max": map_arg_max, "max": map_max}
@@ -115,7 +115,6 @@ class Problem(interaction_loops.Problem):
         self.observer = observer
 
     def give_feedback(self, query) -> tuple[Any, dict[str, Any]]:
-        # TODO: record true value without noise.
         feedback = self.observer(query)
         return feedback, {}
 
@@ -124,8 +123,15 @@ class Problem(interaction_loops.Problem):
 
 
 class Evaluation(interaction_loops.Evaluation):
-    def __init__(self, problem, report_step: reporting.StepReport):
+    def __init__(
+        self,
+        problem: trieste.objectives.single_objectives.SingleObjectiveTestProblem,
+        report_step: reporting.StepReport,
+    ):
         self.problem = problem
+        self.minimum = np.array(problem.minimum)[0]
+        assert isinstance(self.minimum, float)
+
         self.y_max = -np.inf
         self.step = 0
         self.report_step = report_step
@@ -139,19 +145,15 @@ class Evaluation(interaction_loops.Evaluation):
         **kwargs,
     ) -> tuple[Any, dict[str, Any]]:
         del query, feedback_stats, kwargs
+        # TODO: support noise (record true observation).
+        # TODO: support MAP.
 
         assert isinstance(feedback, trieste.data.Dataset)
 
         y_observed = feedback.observations[0, 0]
-        self.y_max = tf.maximum(self.y_max, y_observed)
+        self.y_max = tf.maximum(self.y_max, y_observed).numpy()
 
-        evaluation = {
-            # TODO: "y_observed": y_true,
-            "y_max": float(self.y_max),
-        }
-
-        if "map_arg_max" in query_stats:
-            evaluation["regret"] = self.problem(query_stats["map_arg_max"], noise=False)
+        evaluation = {"y_max": self.y_max, "regret": self.y_max - self.minimum}
 
         self.step += 1
         self.report_step(evaluation, self.step)
@@ -161,8 +163,9 @@ class Evaluation(interaction_loops.Evaluation):
 
 class TriesteBO(interaction_loops.Agent):
 
-    # TODO: add types.
-    def __init__(self, data, search_space):
+    def __init__(
+        self, data: trieste.data.Dataset, search_space: trieste.space.SearchSpace
+    ):
         # TODO: account for different acquisition functions.
         self.data = data
         self.search_space = search_space
@@ -190,7 +193,7 @@ class TriesteBO(interaction_loops.Agent):
 
         query = self.ask_tell.ask()
 
-        # TODO: return argmax map.
+        # TODO: support reporting MAP.
         return query, {}
 
     def observe(self, query, feedback, evaluation) -> None:

@@ -17,7 +17,7 @@ CONFIG = {
 }
 
 
-type UserModel = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
+UserModel = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
 
 
 def oracle(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:

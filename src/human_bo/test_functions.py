@@ -1,8 +1,10 @@
 """Test functions that are not implemented in BoTorch."""
 
 import torch
+import trieste
 from botorch import test_functions
 from botorch.test_functions import base
+import tensorflow as tf
 
 
 class Zhou(test_functions.SyntheticTestFunction):
@@ -82,3 +84,12 @@ def pick_moo_test_function(
         return test_functions.BraninCurrin(noise_std=noise)
 
     raise ValueError(f"{func} is not an accepted MOO test function")
+
+
+TriesteLevy1 = trieste.objectives.single_objectives.SingleObjectiveTestProblem(
+    name="Levy 1",
+    objective=lambda x: trieste.objectives.single_objectives.levy(x, 1),
+    search_space=trieste.space.Box([0.0], [1.0]),
+    minimizers=tf.constant([[11 / 20]], tf.float64),
+    minimum=tf.constant([0], tf.float64),
+)

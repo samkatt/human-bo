@@ -30,7 +30,7 @@ CONFIG = {
     },
 }
 
-type UtilityFunction = Callable[[torch.Tensor], torch.Tensor]
+UtilityFunction = Callable[[torch.Tensor], torch.Tensor]
 
 
 def create_utility_function(w: list[float]) -> UtilityFunction:

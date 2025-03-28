@@ -73,6 +73,10 @@ def create_trieste_acqf_rule(
                 acqf_options["ucb_beta"]
             )
         )
+    if acqf == "mean":
+        return trieste.acquisition.rule.EfficientGlobalOptimization(
+            trieste.acquisition.function.function.NegativePredictiveMean()
+        )
 
     raise ValueError(f"{acqf} is not an accepted acquisition function")
 

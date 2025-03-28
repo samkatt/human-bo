@@ -9,6 +9,7 @@ from typing import Any
 import numpy as np
 import tensorflow as tf
 import trieste
+import trieste.logging
 
 from human_bo import (
     conf,
@@ -98,20 +99,24 @@ def main():
     res["conf"] = exp_params
     res["conf"]["experiment_type"] = "trieste"
 
+    map_y = np.stack(
+        [i["map"]["y"][0] if "map" in i else [np.nan] for i in res["query_stats"]]
+    )
+    map_x = np.stack(
+        [
+            (i["map"]["x"][0] if "map" in i else np.full(trieste_problem.dim, np.nan))
+            for i in res["query_stats"]
+        ]
+    )
+
     res["results"] = {
         "data_init": {"x": np.array(x_init), "y": np.array(data_init.observations)},
         "queries": np.stack(res["query"]),
         "observations": np.stack([f.observations for f in res["feedback"]]),
         "y_max": np.stack([d["y_max"] for d in res["evaluation_stats"]]),
+        "map": {"arg_max": map_x, "max": map_y},
     }
 
-    if "map_arg_max" in res["query_stats"][0]:
-        breakpoint()  # TODO: support MAP.
-        map_arg_max = np.stack([i["map_arg_max"] for i in res["query_stats"]])
-        map_max = np.array(observer(tf.convert_to_tensor(map_arg_max)).observations)
-        res["results"]["map"] = {"arg_max": map_arg_max, "max": map_max}
-
-    # torch.save(res, path)
     with open(path, "wb") as f:
         pickle.dump(res, f)
 
@@ -142,7 +147,7 @@ class Evaluation(interaction_loops.Evaluation):
         self.minimum = float(np.array(problem.minimum)[0])
         assert isinstance(self.minimum, float)
 
-        self.y_max = -np.inf
+        self.obs_max = -np.inf
         self.step = 0
         self.report_step = report_step
 
@@ -154,16 +159,31 @@ class Evaluation(interaction_loops.Evaluation):
         feedback_stats: dict[str, Any],
         **kwargs,
     ) -> tuple[Any, dict[str, Any]]:
-        del query, query_stats, feedback_stats, kwargs
+        del query, feedback_stats, kwargs
         # TODO: support noise (record true observation).
-        # TODO: support MAP.
 
         assert isinstance(feedback, trieste.data.Dataset)
 
         y_observed = np.array(feedback.observations)[0, 0]
-        self.y_max = tf.maximum(self.y_max, y_observed).numpy()
 
-        evaluation = {"y_max": self.y_max, "regret": self.y_max - self.minimum}
+        self.obs_max = tf.maximum(self.obs_max, y_observed).numpy()
+
+        evaluation = {
+            "y_max": self.obs_max,
+            "regret_obs": self.obs_max - self.minimum,
+        }
+
+        if "map" in query_stats:
+            y_arg_map = float(
+                np.array(self.problem.objective(query_stats["map"]["x"]))[0, 0]
+            )
+            map_prediction_error = np.abs(
+                y_arg_map - float(query_stats["map"]["y"][0, 0])
+            )
+
+            evaluation["map"] = y_arg_map
+            evaluation["regret_map"] = y_arg_map - self.minimum
+            evaluation["map_prediction_error"] = map_prediction_error
 
         self.step += 1
         self.report_step(evaluation, self.step)
@@ -198,7 +218,7 @@ class TriesteBO(interaction_loops.Agent):
         # This method will set `self.ask_tell` to `None`. If this does not happen, we crash here.
         assert self.ask_tell is None
 
-        # TODO: improve when to sample random queries.
+        # TODO: improve when to sample random queries (and document).
         # XXX: why is `self.data` potentially `None`?
         if len(self.data) < 2:
             print(
@@ -208,23 +228,39 @@ class TriesteBO(interaction_loops.Agent):
 
         trieste.logging.set_step_number(self.step)
 
-        # XXX: update `model`?
+        # Here we do the main optimization step.
+        # For this, we use `Trieste` "AskTell" interface:
+        # (https://secondmind-labs.github.io/trieste/3.1.0/notebooks/ask_tell_optimization.html)
+
+        # The real important steps are the usual, though: (1) get posterior, (2) get acquisition optimization, (3) run it.
+
+        # 1. Create the model.
         model = trieste.models.gpflow.models.GaussianProcessRegression(
             trieste.models.gpflow.builders.build_gpr(self.data, self.search_space)
         )
+        # XXX: update `model`?
 
+        # 2. Create the acquisition optimizer.
         acqf_rule = core.create_trieste_acqf_rule(
             self.acqf, self.search_space, self.acqf_options
         )
 
+        # 3. Optimize.
         self.ask_tell = trieste.ask_tell_optimization.AskTellOptimizerNoTraining(
             self.search_space, self.data, model, acquisition_rule=acqf_rule
         )
-
         query = self.ask_tell.ask()
 
-        # TODO: support reporting MAP.
-        return query, {}
+        # For statistics, we may be interested in the maximum a posterior: the mean of the posterior.
+        mean_rule: trieste.acquisition.rule.AcquisitionRule = (
+            trieste.acquisition.rule.EfficientGlobalOptimization(
+                trieste.acquisition.function.function.NegativePredictiveMean()
+            )
+        )
+        arg_map = mean_rule.acquire_single(self.search_space, model, self.data)
+        map_mean, _ = model.predict_y(arg_map)
+
+        return query, {"map": {"x": np.array(arg_map), "y": np.array(map_mean)}}
 
     def observe(self, query, feedback, evaluation) -> None:
         del query, evaluation

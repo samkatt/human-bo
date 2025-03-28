@@ -75,6 +75,16 @@ def create_trieste_acqf_rule(
     raise ValueError(f"{acqf} is not an accepted acquisition function")
 
 
+def create_trieste_gp(
+    data: trieste.data.Dataset, search_space: trieste.space.SearchSpace
+):
+    """Factory function for creating (Trieste) posterior models."""
+    # XXX: update `model`?
+    return trieste.models.gpflow.models.GaussianProcessRegression(
+        trieste.models.gpflow.builders.build_gpr(data, search_space)
+    )
+
+
 def pick_kernel(ker: str, dim: int) -> kernels.ScaleKernel | None:
     """Instantiate the given kernel.
 

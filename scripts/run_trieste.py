@@ -228,10 +228,7 @@ class TriesteBO(interaction_loops.Agent):
 
         # 1. Create the model (or return random sample if fails).
         try:
-            # XXX: update `model`?
-            model = trieste.models.gpflow.models.GaussianProcessRegression(
-                trieste.models.gpflow.builders.build_gpr(self.data, self.search_space)
-            )
+            model = core.create_trieste_gp(self.data, self.search_space)
 
         except InvalidArgumentError:
             print(

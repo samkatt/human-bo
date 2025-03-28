@@ -41,6 +41,11 @@ def main():
         "-f", "--save_dir", help="Name of saving directory.", type=str, required=True
     )
     parser.add_argument("--wandb", help="Wandb configuration file.", type=str)
+    parser.add_argument(
+        "--tensorboard",
+        help="Log results to `save_dir/tensorboard/experiment_name`",
+        action="store_true",
+    )
     exp_params = vars(parser.parse_args())
 
     experiment_name = "_".join(
@@ -56,11 +61,13 @@ def main():
     tf.random.set_seed(exp_params["seed"])
     np.random.seed(exp_params["seed"])
 
-    trieste.logging.set_tensorboard_writer(
-        tf.summary.create_file_writer(
-            exp_params["save_dir"] + "/tensorboard/" + experiment_name
+    if exp_params["tensorboard"]:
+        trieste.logging.set_summary_filter(lambda _: True)
+        trieste.logging.set_tensorboard_writer(
+            tf.summary.create_file_writer(
+                exp_params["save_dir"] + "/tensorboard/" + experiment_name
+            )
         )
-    )
 
     # Create problem and evaluation.
     trieste_problem = test_functions.create_trieste_test_function(exp_params["problem"])
@@ -203,8 +210,6 @@ class TriesteBO(interaction_loops.Agent):
         self.search_space = search_space
         self.step = -1
         self.acqf = core.create_trieste_acqf_rule(acqf, self.search_space, acqf_options)
-        # self.acqf = acqf
-        # self.acqf_options = acqf_options
 
         self.ask_tell: (
             trieste.ask_tell_optimization.AskTellOptimizerNoTraining | None

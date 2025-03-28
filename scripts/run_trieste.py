@@ -203,8 +203,9 @@ class TriesteBO(interaction_loops.Agent):
         self.data = data
         self.search_space = search_space
         self.step = -1
-        self.acqf = acqf
-        self.acqf_options = acqf_options
+        self.acqf = core.create_trieste_acqf_rule(acqf, self.search_space, acqf_options)
+        # self.acqf = acqf
+        # self.acqf_options = acqf_options
 
         self.ask_tell: (
             trieste.ask_tell_optimization.AskTellOptimizerNoTraining | None
@@ -239,9 +240,7 @@ class TriesteBO(interaction_loops.Agent):
             return self.search_space.sample(1), {}
 
         # 2. Create the acquisition optimizer.
-        acqf_rule = core.create_trieste_acqf_rule(
-            self.acqf, self.search_space, self.acqf_options
-        )
+        acqf_rule = trieste.acquisition.rule.EfficientGlobalOptimization(self.acqf)
 
         # 3. Optimize.
         self.ask_tell = trieste.ask_tell_optimization.AskTellOptimizerNoTraining(

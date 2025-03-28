@@ -58,25 +58,19 @@ def create_trieste_acqf_rule(
     acqf: str,
     search_space: trieste.space.SearchSpace,
     acqf_options: dict[str, Any],
-) -> trieste.acquisition.rule.AcquisitionRule:
+) -> trieste.acquisition.interface.SingleModelAcquisitionBuilder:
     """Creates an acquisition "rule" for Trieste to give to optimizers.
 
     Note: the result is *state-full*, so please make sure you re-create this every time you optimize.
     """
     if acqf == "EI":
-        return trieste.acquisition.rule.EfficientGlobalOptimization(
-            trieste.acquisition.function.function.ExpectedImprovement(search_space)
-        )
+        return trieste.acquisition.function.function.ExpectedImprovement(search_space)
     if acqf == "UCB":
-        return trieste.acquisition.rule.EfficientGlobalOptimization(
-            trieste.acquisition.function.function.NegativeLowerConfidenceBound(
-                acqf_options["ucb_beta"]
-            )
+        return trieste.acquisition.function.function.NegativeLowerConfidenceBound(
+            acqf_options["ucb_beta"]
         )
     if acqf == "mean":
-        return trieste.acquisition.rule.EfficientGlobalOptimization(
-            trieste.acquisition.function.function.NegativePredictiveMean()
-        )
+        return trieste.acquisition.function.function.NegativePredictiveMean()
 
     raise ValueError(f"{acqf} is not an accepted acquisition function")
 

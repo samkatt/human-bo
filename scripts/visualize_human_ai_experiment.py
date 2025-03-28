@@ -14,7 +14,7 @@ import torch
 import trieste
 from matplotlib.widgets import Slider
 
-from human_bo import conf, test_functions, utils, visualization
+from human_bo import conf, core, test_functions, utils, visualization
 from human_bo.moo import moo_core
 
 
@@ -166,9 +166,12 @@ def visualize_trajectory_1D(data) -> None:
     # Load configurations and data.
     exp_params = data["conf"]
     # TODO: plot acquisition values (make sure to save them first).
-    # acqf_options = conf.get_entries_with_tag(exp_params, "acqf-option")
     problem = test_functions.create_trieste_test_function(exp_params["problem"])
     observer = trieste.objectives.utils.mk_observer(problem.objective)
+
+    # TODO: report acquisition function.
+    # acqf_options = conf.get_entries_with_tag(exp_params, "acqf-option")
+    # acqf = core.create_trieste_acqf_rule(exp_params["acqf"], problem.search_space, acqf_options)
 
     [x_min], [x_max] = problem.bounds
     x_linspace = np.linspace(x_min, x_max, 101).reshape(-1, 1)

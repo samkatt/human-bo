@@ -100,3 +100,4 @@ But I tend to just run `scripts/static_analysis.sh` and check the output.
     - [ ] Remove imports.
     - [ ] Remove from dependencies.
 - [ ] Support different Trieste kernels.
+- [ ] Fix all tensorflow warnings.

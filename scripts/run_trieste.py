@@ -10,6 +10,7 @@ import numpy as np
 import tensorflow as tf
 import trieste
 import trieste.logging
+from tensorflow.python.framework.errors import InvalidArgumentError
 
 from human_bo import (
     conf,
@@ -48,8 +49,7 @@ def main():
         + [str(exp_params["seed"])]
     )
 
-    # FIX: probably remove `pt` suffix? Unless it is pickled?
-    path = exp_params["save_dir"] + "/" + experiment_name + ".pt"
+    path = exp_params["save_dir"] + "/" + experiment_name + ".pkl"
 
     utils.exit_if_exists(path)
     utils.create_directory_if_does_not_exist(exp_params["save_dir"])
@@ -212,21 +212,12 @@ class TriesteBO(interaction_loops.Agent):
 
     def pick_query(self) -> tuple[Any, dict[str, Any]]:
         self.step += 1
+        trieste.logging.set_step_number(self.step)
 
         # Verify this class is used appropriately:
         # We expect that in between each `pick_query` call, the `observe` method is called.
         # This method will set `self.ask_tell` to `None`. If this does not happen, we crash here.
         assert self.ask_tell is None
-
-        # TODO: improve when to sample random queries (and document).
-        # XXX: why is `self.data` potentially `None`?
-        if len(self.data) < 2:
-            print(
-                "WARN (TriesteBO.pick_query): not enough data, returning random sample."
-            )
-            return self.search_space.sample(1), {}
-
-        trieste.logging.set_step_number(self.step)
 
         # Here we do the main optimization step.
         # For this, we use `Trieste` "AskTell" interface:
@@ -234,11 +225,18 @@ class TriesteBO(interaction_loops.Agent):
 
         # The real important steps are the usual, though: (1) get posterior, (2) get acquisition optimization, (3) run it.
 
-        # 1. Create the model.
-        model = trieste.models.gpflow.models.GaussianProcessRegression(
-            trieste.models.gpflow.builders.build_gpr(self.data, self.search_space)
-        )
-        # XXX: update `model`?
+        # 1. Create the model (or return random sample if fails).
+        try:
+            # XXX: update `model`?
+            model = trieste.models.gpflow.models.GaussianProcessRegression(
+                trieste.models.gpflow.builders.build_gpr(self.data, self.search_space)
+            )
+
+        except InvalidArgumentError:
+            print(
+                "WARN: `TriesteBO.pick_query` failed to fit model, returning random sample."
+            )
+            return self.search_space.sample(1), {}
 
         # 2. Create the acquisition optimizer.
         acqf_rule = core.create_trieste_acqf_rule(

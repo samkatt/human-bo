@@ -61,7 +61,7 @@ CONFIG: dict[str, dict[str, Any]] = {
                 "Ackley1D": {"dims": 1, "optimal_x": [[0.0]]},
                 "DixonPrice1D": {"dims": 1, "optimal_x": [[0.0]]},
                 "Griewank1D": {"dims": 1, "optimal_x": [[0.0]]},
-                "Levy1D": {"dims": 1, "optimal_x": [[1.0]]},
+                "Levy1D": {"dims": 1, "optimal_x": [[11 / 20]]},
                 "Rastrigin1D": {"dims": 1, "optimal_x": [[0.0]]},
                 "StyblinskiTang1D": {"dims": 1, "optimal_x": [[-39.166166]]},
                 "Forrester": {"dims": 1, "optimal_x": [[1.0]]},

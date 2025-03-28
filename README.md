@@ -91,13 +91,13 @@ But I tend to just run `scripts/static_analysis.sh` and check the output.
 
 ### To do
 
-- [ ] Make sure all tensors are created with `torch.tensor` (not `torch.Tensor`).
-- [ ] Make sure data visualized in scripts are saved nicely in the first place.
 - [ ] Update README.
-- [ ] Check if I need to update or train model specifically.
 - [ ] Update visualization to explicitly do Trieste.
-- [ ] Remove torch.
-    - [ ] Remove imports.
-    - [ ] Remove from dependencies.
 - [ ] Support different Trieste kernels.
 - [ ] Fix all tensorflow warnings.
+- [ ] Massive clean up:
+    - [ ] Remove "AI then human" remnants.
+    - [ ] Rename and move components to get clear API between Trieste and my code.
+    - [ ] Remove torch.
+        - [ ] Remove imports.
+        - [ ] Remove from dependencies.

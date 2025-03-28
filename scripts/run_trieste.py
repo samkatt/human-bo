@@ -10,7 +10,6 @@ import numpy as np
 import tensorflow as tf
 import trieste
 import trieste.logging
-from tensorflow.python.framework.errors import InvalidArgumentError
 
 from human_bo import (
     conf,
@@ -230,14 +229,16 @@ class TriesteBO(interaction_loops.Agent):
         try:
             model = core.create_trieste_gp(self.data, self.search_space)
 
-        except InvalidArgumentError:
+        except tf.errors.InvalidArgumentError:
             print(
                 "WARN: `TriesteBO.pick_query` failed to fit model, returning random sample."
             )
             return self.search_space.sample(1), {}
 
         # 2. Create the acquisition optimizer.
-        acqf_rule = trieste.acquisition.rule.EfficientGlobalOptimization(self.acqf)
+        acqf_rule: trieste.acquisition.rule.AcquisitionRule = (
+            trieste.acquisition.rule.EfficientGlobalOptimization(self.acqf)
+        )
 
         # 3. Optimize.
         self.ask_tell = trieste.ask_tell_optimization.AskTellOptimizerNoTraining(
@@ -252,7 +253,7 @@ class TriesteBO(interaction_loops.Agent):
             )
         )
         arg_map = mean_rule.acquire_single(self.search_space, model, self.data)
-        map_mean, _ = model.predict_y(arg_map)
+        map_mean, _ = model.predict(arg_map)
 
         return query, {"map": {"x": np.array(arg_map), "y": np.array(map_mean)}}
 

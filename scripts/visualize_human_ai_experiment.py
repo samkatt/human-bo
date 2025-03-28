@@ -165,13 +165,13 @@ def visualize_trajectory_1D(data) -> None:
     """
     # Load configurations and data.
     exp_params = data["conf"]
-    # TODO: plot acquisition values (make sure to save them first).
     problem = test_functions.create_trieste_test_function(exp_params["problem"])
     observer = trieste.objectives.utils.mk_observer(problem.objective)
 
-    # TODO: report acquisition function.
-    # acqf_options = conf.get_entries_with_tag(exp_params, "acqf-option")
-    # acqf = core.create_trieste_acqf_rule(exp_params["acqf"], problem.search_space, acqf_options)
+    acqf_options = conf.get_entries_with_tag(exp_params, "acqf-option")
+    acqf = core.create_trieste_acqf_rule(
+        exp_params["acqf"], problem.search_space, acqf_options
+    )
 
     [x_min], [x_max] = problem.bounds
     x_linspace = np.linspace(x_min, x_max, 101).reshape(-1, 1)
@@ -188,8 +188,8 @@ def visualize_trajectory_1D(data) -> None:
         map_arg_max = data["results"]["map"]["arg_max"]
         map_max = data["results"]["map"]["max"]
     else:
-        map_arg_max = np.full_like(queries, np.nan)
-        map_max = np.full_like(observations, np.nan)
+        map_arg_max = np.zeros_like(queries)
+        map_max = np.zeros_like(observations)
 
     # Process results for each "time step"
     results = []
@@ -197,53 +197,40 @@ def visualize_trajectory_1D(data) -> None:
         x = np.concatenate((x_init, queries[:b].reshape(-1, 1)))
         y = np.concatenate((y_init.reshape(-1), observations[:b].reshape(-1)))
 
-        if len(x) == 0:
-            assert b == 0
-
-            # Little hack: very rarely we start experiments with no initial points.
-            # In this case, we _cannot_ compute any of the things we want to do below.
-            # So we just return zero for all of them.
-            results.append(
-                {
-                    "gpr_post_mean": torch.zeros(len(x_linspace)),
-                    "gpr_post_var": torch.zeros(len(x_linspace)),
-                    "queries": queries[:b],
-                    "x_init": x_init,
-                    "observations": observations[:b],
-                    "y_init": y_init,
-                    "acqf": torch.zeros(len(x_linspace)),
-                    "map": [map_arg_max[b], map_max[b]],
-                }
+        # We try to gather information on the posterior and acquisition function.
+        # Sometimes, for example if there is not enough data, this fails.
+        # So we wrap it in a try-catch.
+        try:
+            data = trieste.data.Dataset(
+                tf.convert_to_tensor(x), tf.convert_to_tensor(y[..., np.newaxis])
             )
+            model = core.create_trieste_gp(data, problem.search_space)
 
-            continue
+            acqf_function = acqf.prepare_acquisition_function(model, data)
+            predictions = model.predict(tf.convert_to_tensor(x_linspace))
 
-        # gpr = core.fit_gp(
-        #     x, y, core.pick_kernel(exp_params["kernel"], 1), input_bounds=bounds
-        # )
+            acqf_vals = np.array(
+                acqf_function(tf.convert_to_tensor(x_linspace[..., np.newaxis]))
+            ).squeeze()
+            gpr_post_mean = np.array(predictions[0]).squeeze()
+            gpr_post_var = np.array(predictions[1]).squeeze()
 
-        # posteriors = gpr.posterior(x_linspace)
-        # gpr_post_mean = posteriors.mean.squeeze().detach().numpy()
-        # gpr_post_var = posteriors.variance.squeeze().detach().numpy()
-
-        # acqf = core.create_acqf(
-        #     exp_params["acqf"],
-        #     x,
-        #     gpr,
-        #     bounds,
-        #     **acqf_options,
-        # )
-        # acqf_eval = acqf(x_linspace[:, None, :]).detach().numpy()
+        except tf.errors.InvalidArgumentError:
+            # Caught corner case: presumably not enough data to fit the model.
+            # Just fill in the data of interest with NaN.
+            gpr_post_mean = np.zeros(len(x_linspace))
+            gpr_post_var = np.zeros(len(x_linspace))
+            acqf_vals = np.zeros(len(x_linspace))
 
         results.append(
             {
-                # "gpr_post_mean": gpr_post_mean,
-                # "gpr_post_var": gpr_post_var,
+                "gpr_post_mean": gpr_post_mean,
+                "gpr_post_var": gpr_post_var,
                 "queries": queries[:b],
                 "x_init": x_init,
                 "observations": observations[:b],
                 "y_init": y_init,
-                #     "acqf": acqf_eval,
+                "acqf": acqf_vals,
             }
         )
 
@@ -262,28 +249,27 @@ def visualize_trajectory_1D(data) -> None:
 
         # Grab results for time step `b`
         r = results[b]
-        queries_at_b, x_init, observations_at_b, y_init = (
-            # m, var, queries_at_b, x_init, observations_at_b, y_init, acqf = (
-            # r["gpr_post_mean"],
-            # r["gpr_post_var"],
+        m, var, queries_at_b, x_init, observations_at_b, y_init, acqf = (
+            r["gpr_post_mean"],
+            r["gpr_post_var"],
             r["queries"],
             r["x_init"],
             r["observations"],
             r["y_init"],
-            # r["acqf"],
+            r["acqf"],
         )
 
         ax.plot(x_linspace, y_truth, label="Ground Truth")
 
         # Plot results
-        # ax.plot(x_linspace, m, "b", label="GP Mean function")
-        # ax.fill_between(
-        #     x_linspace.squeeze(),
-        #     m - var,
-        #     m + var,
-        #     alpha=0.2,
-        #     color="b",
-        # )
+        ax.plot(x_linspace, m, "b", label="GP Mean function")
+        ax.fill_between(
+            x_linspace.squeeze(),
+            m - var,
+            m + var,
+            alpha=0.2,
+            color="b",
+        )
         ax.scatter(
             x_init,
             y_init,
@@ -308,14 +294,14 @@ def visualize_trajectory_1D(data) -> None:
             assert "map" in r
             ax.scatter(r["map"][0], r["map"][1], color="g", label="MAP")
 
-        # ax.plot(
-        #     x_linspace,
-        #     acqf,
-        #     ls="dotted",
-        #     color="orange",
-        #     linewidth=3,
-        #     label=exp_params["acqf"],
-        # )
+        ax.plot(
+            x_linspace,
+            acqf,
+            ls="dotted",
+            color="orange",
+            linewidth=3,
+            label=exp_params["acqf"],
+        )
 
         # Basic plotting style
         ax.set_xlabel("x")
@@ -357,12 +343,14 @@ def visualize_trajectory_2D(data) -> None:
     :returns: None
     """
     # Load configurations and results.
-    # TODO: support plotting acquisition values.
-    # acqf_options = conf.get_entries_with_tag(exp_params, "acqf-option")
-
     exp_params = data["conf"]
     problem = test_functions.create_trieste_test_function(exp_params["problem"])
     observer = trieste.objectives.utils.mk_observer(problem.objective)
+
+    acqf_options = conf.get_entries_with_tag(exp_params, "acqf-option")
+    acqf = core.create_trieste_acqf_rule(
+        exp_params["acqf"], problem.search_space, acqf_options
+    )
 
     # Pre-compute global variables.
     [x1_min, x2_min], [x1_max, x2_max] = problem.bounds
@@ -370,7 +358,7 @@ def visualize_trajectory_2D(data) -> None:
     x2 = np.linspace(x2_min, x2_max, 100)
     X1, X2 = np.meshgrid(x1, x2, indexing="xy")
     X = np.stack((X1, X2), axis=2)
-    Y = tf.squeeze(observer(tf.convert_to_tensor(X)).observations)
+    Y = np.array(observer(tf.convert_to_tensor(X)).observations).squeeze()
 
     x_init = data["results"]["data_init"]["x"]
     y_init = data["results"]["data_init"]["y"]
@@ -381,8 +369,8 @@ def visualize_trajectory_2D(data) -> None:
         map_arg_max = np.array(data["results"]["map"]["arg_max"])
         map_max = np.array(data["results"]["map"]["max"])
     else:
-        map_arg_max = np.full_like(queries, np.nan)
-        map_max = np.full_like(observations, np.nan)
+        map_arg_max = np.zeros_like(queries)
+        map_max = np.zeros_like(observations)
 
     n = len(observations)
 
@@ -395,50 +383,43 @@ def visualize_trajectory_2D(data) -> None:
         obs = observations[:b].reshape(-1)
         y = np.concatenate((y_init.reshape(-1), obs))
 
-        if len(x) == 0:
-            assert b == 0
-            # Weird corner case: there is nothing to plot.
-            results.append(
-                {
-                    "gpr_post_mean": np.zeros_like(Y),
-                    "gpr_post_mean_dist": np.zeros_like(Y),
-                    "gpr_post_var": np.zeros_like(Y),
-                    "queries": qs,
-                    "x_init": x_init,
-                    "observations": obs,
-                    "y_init": y_init,
-                    "acqf": np.zeros_like(Y),
-                    "map": [map_arg_max[b], map_max[b]],
-                }
+        # We try to gather information on the posterior and acquisition function.
+        # Sometimes, for example if there is not enough data, this fails.
+        # So we wrap it in a try-catch.
+        try:
+            data = trieste.data.Dataset(
+                tf.convert_to_tensor(x), tf.convert_to_tensor(y[..., np.newaxis])
             )
+            model = core.create_trieste_gp(data, problem.search_space)
 
-            continue
+            acqf_function = acqf.prepare_acquisition_function(model, data)
+            acqf_eval = acqf_function(tf.convert_to_tensor(np.expand_dims(X, -2)))
+            predictions = model.predict(tf.convert_to_tensor(X))
 
-        # gpr = core.fit_gp(
-        #     x, y, core.pick_kernel(exp_params["kernel"], 1), input_bounds=bounds
-        # )
+            gpr_post_mean = np.array(predictions[0]).squeeze()
+            gpr_post_mean_dist = np.array(gpr_post_mean).squeeze() - Y
+            gpr_post_var = np.array(predictions[1]).squeeze()
+            acqf_vals = np.array(acqf_eval).squeeze()
 
-        # posteriors = gpr.posterior(X)
-        # gpr_post_mean = posteriors.mean.squeeze()
-        # gpr_post_var = posteriors.variance.squeeze()
+        except tf.errors.InvalidArgumentError:
+            # Caught corner case: presumably not enough data to fit the model.
+            # Just fill in the data of interest with NaN.
 
-        # acqf = core.create_acqf(exp_params["acqf"], x, gpr, bounds, **acqf_options)
-        # acqf_eval = acqf(X.reshape(-1, 2)[:, None, :]).reshape(gpr_post_mean.shape)
+            gpr_post_mean = np.zeros_like(Y)
+            gpr_post_mean_dist = np.zeros_like(Y)
+            gpr_post_var = np.zeros_like(Y)
+            acqf_vals = np.zeros_like(Y)
 
         results.append(
             {
-                # "gpr_post_mean": gpr_post_mean.detach().numpy(),
-                # "gpr_post_mean_dist": (gpr_post_mean - Y).detach().numpy(),
-                # "gpr_post_var": gpr_post_var.detach().numpy(),
-                "gpr_post_mean": np.zeros_like(Y),
-                "gpr_post_mean_dist": np.zeros_like(Y),
-                "gpr_post_var": np.zeros_like(Y),
+                "gpr_post_mean": gpr_post_mean,
+                "gpr_post_mean_dist": gpr_post_mean_dist,
+                "gpr_post_var": gpr_post_var,
                 "queries": qs,
                 "x_init": x_init,
                 "observations": obs,
                 "y_init": y_init,
-                "acqf": np.zeros_like(Y),
-                # "acqf": acqf_eval.detach().numpy(),
+                "acqf": acqf_vals,
             }
         )
 

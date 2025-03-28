@@ -12,6 +12,7 @@ import trieste
 
 from human_bo import (
     conf,
+    core,
     human_feedback_experiments,
     interaction_loops,
     reporting,
@@ -81,7 +82,12 @@ def main():
     x_init = trieste_problem.search_space.sample(exp_params["n_init"])
     data_init = observer(x_init)
 
-    ai = TriesteBO(data_init, trieste_problem.search_space, exp_params["acqf"])
+    ai = TriesteBO(
+        data_init,
+        trieste_problem.search_space,
+        exp_params["acqf"],
+        acqf_options=conf.get_entries_with_tag(exp_params, "acqf-option"),
+    )
     # TODO: support noise.
     problem = Problem(observer)
 
@@ -133,7 +139,7 @@ class Evaluation(interaction_loops.Evaluation):
         report_step: reporting.StepReport,
     ):
         self.problem = problem
-        self.minimum = np.array(problem.minimum)[0]
+        self.minimum = float(np.array(problem.minimum)[0])
         assert isinstance(self.minimum, float)
 
         self.y_max = -np.inf
@@ -148,13 +154,13 @@ class Evaluation(interaction_loops.Evaluation):
         feedback_stats: dict[str, Any],
         **kwargs,
     ) -> tuple[Any, dict[str, Any]]:
-        del query, feedback_stats, kwargs
+        del query, query_stats, feedback_stats, kwargs
         # TODO: support noise (record true observation).
         # TODO: support MAP.
 
         assert isinstance(feedback, trieste.data.Dataset)
 
-        y_observed = feedback.observations[0, 0]
+        y_observed = np.array(feedback.observations)[0, 0]
         self.y_max = tf.maximum(self.y_max, y_observed).numpy()
 
         evaluation = {"y_max": self.y_max, "regret": self.y_max - self.minimum}
@@ -171,16 +177,14 @@ class TriesteBO(interaction_loops.Agent):
         self,
         data: trieste.data.Dataset,
         search_space: trieste.space.SearchSpace,
-        acq_func: str,
+        acqf: str,
+        acqf_options: dict[str, Any],
     ):
         self.data = data
         self.search_space = search_space
         self.step = -1
-
-        # TODO: account for different acquisition functions.
-        self.trieste_acqf = trieste.acquisition.function.function.ExpectedImprovement(
-            self.search_space
-        )
+        self.acqf = acqf
+        self.acqf_options = acqf_options
 
         self.ask_tell: (
             trieste.ask_tell_optimization.AskTellOptimizerNoTraining | None
@@ -189,8 +193,13 @@ class TriesteBO(interaction_loops.Agent):
     def pick_query(self) -> tuple[Any, dict[str, Any]]:
         self.step += 1
 
+        # Verify this class is used appropriately:
+        # We expect that in between each `pick_query` call, the `observe` method is called.
+        # This method will set `self.ask_tell` to `None`. If this does not happen, we crash here.
         assert self.ask_tell is None
 
+        # TODO: improve when to sample random queries.
+        # XXX: why is `self.data` potentially `None`?
         if len(self.data) < 2:
             print(
                 "WARN (TriesteBO.pick_query): not enough data, returning random sample."
@@ -198,11 +207,14 @@ class TriesteBO(interaction_loops.Agent):
             return self.search_space.sample(1), {}
 
         trieste.logging.set_step_number(self.step)
+
+        # XXX: update `model`?
         model = trieste.models.gpflow.models.GaussianProcessRegression(
             trieste.models.gpflow.builders.build_gpr(self.data, self.search_space)
         )
-        acqf_rule: trieste.acquisition.rule.AcquisitionRule = (
-            trieste.acquisition.rule.EfficientGlobalOptimization(self.trieste_acqf)
+
+        acqf_rule = core.create_trieste_acqf_rule(
+            self.acqf, self.search_space, self.acqf_options
         )
 
         self.ask_tell = trieste.ask_tell_optimization.AskTellOptimizerNoTraining(

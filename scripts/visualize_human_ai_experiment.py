@@ -206,26 +206,31 @@ def visualize_trajectory_1D(data) -> None:
             )
             model = core.create_trieste_gp(data, problem.search_space)
 
-            acqf_function = acqf.prepare_acquisition_function(model, data)
-            predictions = model.predict(tf.convert_to_tensor(x_linspace))
+            y_mean, y_var = model.predict_y(tf.convert_to_tensor(x_linspace))
+            _, f_var = model.model.predict_f(tf.convert_to_tensor(x_linspace))
 
+            gpr_mean = np.array(y_mean).squeeze()
+            f_stder = 1.96 * np.sqrt(np.array(f_var).squeeze())
+            y_stder = 1.96 * np.sqrt(np.array(y_var).squeeze())
+
+            acqf_function = acqf.prepare_acquisition_function(model, data)
             acqf_vals = np.array(
                 acqf_function(tf.convert_to_tensor(x_linspace[..., np.newaxis]))
             ).squeeze()
-            gpr_post_mean = np.array(predictions[0]).squeeze()
-            gpr_post_var = np.array(predictions[1]).squeeze()
 
         except tf.errors.InvalidArgumentError:
             # Caught corner case: presumably not enough data to fit the model.
             # Just fill in the data of interest with zeros.
-            gpr_post_mean = np.zeros(len(x_linspace))
-            gpr_post_var = np.zeros(len(x_linspace))
+            gpr_mean = np.zeros(len(x_linspace))
+            y_stder = np.zeros(len(x_linspace))
+            f_stder = np.zeros(len(x_linspace))
             acqf_vals = np.zeros(len(x_linspace))
 
         results.append(
             {
-                "gpr_post_mean": gpr_post_mean,
-                "gpr_post_var": gpr_post_var,
+                "gpr_mean": gpr_mean,
+                "y_stder": y_stder,
+                "f_stder": f_stder,
                 "queries": queries[:b],
                 "x_init": x_init,
                 "observations": observations[:b],
@@ -249,9 +254,10 @@ def visualize_trajectory_1D(data) -> None:
 
         # Grab results for time step `b`
         r = results[b]
-        m, var, queries_at_b, x_init, observations_at_b, y_init, acqf = (
-            r["gpr_post_mean"],
-            r["gpr_post_var"],
+        m, y_stder, f_stder, queries_at_b, x_init, observations_at_b, y_init, acqf = (
+            r["gpr_mean"],
+            r["y_stder"],
+            r["f_stder"],
             r["queries"],
             r["x_init"],
             r["observations"],
@@ -263,13 +269,27 @@ def visualize_trajectory_1D(data) -> None:
 
         # Plot results
         ax.plot(x_linspace, m, "b", label="GP Mean function")
+
+        ax.plot(x_linspace, m + y_stder, "--", color="b", label="y stder")
+        ax.plot(x_linspace, m - y_stder, "--", color="b")
         ax.fill_between(
             x_linspace.squeeze(),
-            m - var,
-            m + var,
+            m - y_stder,
+            m + y_stder,
             alpha=0.2,
             color="b",
         )
+
+        ax.plot(x_linspace, m + f_stder, ".", color="b", label="f stder")
+        ax.plot(x_linspace, m - f_stder, ".", color="b")
+        ax.fill_between(
+            x_linspace.squeeze(),
+            m - f_stder,
+            m + f_stder,
+            alpha=0.2,
+            color="b",
+        )
+
         ax.scatter(
             x_init,
             y_init,
@@ -392,28 +412,30 @@ def visualize_trajectory_2D(data) -> None:
             )
             model = core.create_trieste_gp(data, problem.search_space)
 
-            acqf_function = acqf.prepare_acquisition_function(model, data)
-            acqf_eval = acqf_function(tf.convert_to_tensor(np.expand_dims(X, -2)))
-            predictions = model.predict(tf.convert_to_tensor(X))
+            y_mean, y_var = model.predict_y(tf.convert_to_tensor(X))
 
-            gpr_post_mean = np.array(predictions[0]).squeeze()
-            gpr_post_mean_dist = np.array(gpr_post_mean).squeeze() - Y
-            gpr_post_var = np.array(predictions[1]).squeeze()
-            acqf_vals = np.array(acqf_eval).squeeze()
+            gpr_mean = np.array(y_mean).squeeze()
+            gpr_mean_err = np.array(y_mean).squeeze() - Y
+            y_stder = 1.96 * np.sqrt(np.array(y_var).squeeze())
+
+            acqf_function = acqf.prepare_acquisition_function(model, data)
+            acqf_vals = np.array(
+                acqf_function(tf.convert_to_tensor(np.expand_dims(X, -2)))
+            ).squeeze()
 
         except tf.errors.InvalidArgumentError:
             # Caught corner case: presumably not enough data to fit the model.
             # Just fill in the data of interest with zeros.
-            gpr_post_mean = np.zeros_like(Y)
-            gpr_post_mean_dist = np.zeros_like(Y)
-            gpr_post_var = np.zeros_like(Y)
+            gpr_mean = np.zeros_like(Y)
+            gpr_mean_err = np.zeros_like(Y)
+            y_stder = np.zeros_like(Y)
             acqf_vals = np.zeros_like(Y)
 
         results.append(
             {
-                "gpr_post_mean": gpr_post_mean,
-                "gpr_post_mean_dist": gpr_post_mean_dist,
-                "gpr_post_var": gpr_post_var,
+                "gpr_mean": gpr_mean,
+                "y_stder": y_stder,
+                "gpr_post_err": gpr_mean_err,
                 "queries": qs,
                 "x_init": x_init,
                 "observations": obs,
@@ -429,12 +451,12 @@ def visualize_trajectory_2D(data) -> None:
     fig = plt.figure(figsize=(10, 8))
     surface_kwargs = {"rcount": 3, "ccount": 3, "lw": 0.5, "alpha": 0.3}
     contour_vals = {
-        "var": "gpr_post_var",
-        "mean_dist": "gpr_post_mean_dist",
+        "y_stder": "y_stder",
+        "mean_dist": "gpr_mean_err",
         "acqf": "acqf",
     }
     axs = {
-        "var": fig.add_subplot(2, 2, 1),
+        "y_stder": fig.add_subplot(2, 2, 1),
         "mean_dist": fig.add_subplot(2, 2, 2),
         "acqf": fig.add_subplot(2, 2, 3),
         "ax_3d": fig.add_subplot(2, 2, 4, projection="3d"),
@@ -487,7 +509,7 @@ def visualize_trajectory_2D(data) -> None:
         axs["ax_3d"].plot_surface(  # type: ignore
             X1,
             X2,
-            r["gpr_post_mean"],
+            r["gpr_mean"],
             color="blue",
             edgecolor="blue",
             label="GP mean",

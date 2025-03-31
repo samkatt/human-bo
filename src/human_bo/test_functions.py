@@ -129,3 +129,14 @@ def create_trieste_test_function(
         return trieste.objectives.single_objectives.Branin
 
     raise ValueError(f"{func} is not an accepted Trieste test function")
+
+
+def create_trieste_observer(f, noise_stdev) -> trieste.observer.Observer:
+    """Makes `f` noisey (with stdev `noise`) and make a Trieste observer out of it."""
+
+    def noisey_f(X):
+        y = f(X)
+        noise = tf.random.normal(y.shape, stddev=noise_stdev, dtype=y.dtype)
+        return y + noise
+
+    return trieste.objectives.utils.mk_observer(noisey_f)

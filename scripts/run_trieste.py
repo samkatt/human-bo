@@ -74,7 +74,9 @@ def main():
     assert isinstance(
         trieste_problem, trieste.objectives.single_objectives.SingleObjectiveTestProblem
     )
-    observer = trieste.objectives.utils.mk_observer(trieste_problem.objective)
+    observer = test_functions.create_trieste_observer(
+        trieste_problem.objective, noise_stdev=exp_params["problem_noise"]
+    )
 
     report_step = (
         reporting.initiate_and_create_wandb_logger(
@@ -89,13 +91,14 @@ def main():
     x_init = trieste_problem.search_space.sample(exp_params["n_init"])
     data_init = observer(x_init)
 
+    assert isinstance(data_init, trieste.data.Dataset)
+
     ai = TriesteBO(
         data_init,
         trieste_problem.search_space,
         exp_params["acqf"],
         acqf_options=conf.get_entries_with_tag(exp_params, "acqf-option"),
     )
-    # TODO: support noise.
     problem = Problem(observer)
 
     print(f"Running experiment for {path}")
@@ -153,7 +156,7 @@ class Evaluation(interaction_loops.Evaluation):
         self.minimum = float(np.array(problem.minimum)[0])
         assert isinstance(self.minimum, float)
 
-        self.obs_max = -np.inf
+        self.obs_max, self.y_max = -np.inf, -np.inf
         self.step = 0
         self.report_step = report_step
 
@@ -165,17 +168,20 @@ class Evaluation(interaction_loops.Evaluation):
         feedback_stats: dict[str, Any],
         **kwargs,
     ) -> tuple[Any, dict[str, Any]]:
-        del query, feedback_stats, kwargs
-        # TODO: support noise (record true observation).
+        del feedback_stats, kwargs
 
         assert isinstance(feedback, trieste.data.Dataset)
 
         y_observed = np.array(feedback.observations)[0, 0]
+        self.obs_max = max(self.obs_max, y_observed)
 
-        self.obs_max = tf.maximum(self.obs_max, y_observed).numpy()
+        y_true = np.array(self.problem.objective(query))[0, 0]
+        self.y_max = max(self.y_max, y_true)
 
         evaluation = {
-            "y_max": self.obs_max,
+            "obs_max": self.obs_max,
+            "y_true": y_true,
+            "y_max": self.y_max,
             "regret_obs": self.obs_max - self.minimum,
         }
 

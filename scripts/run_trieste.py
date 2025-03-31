@@ -122,7 +122,7 @@ def main():
         "data_init": {"x": np.array(x_init), "y": np.array(data_init.observations)},
         "queries": np.stack(res["query"]),
         "observations": np.stack([f.observations for f in res["feedback"]]),
-        "y_max": np.stack([d["y_max"] for d in res["evaluation_stats"]]),
+        "y_min": np.stack([d["y_min"] for d in res["evaluation_stats"]]),
         "map": {"arg_max": map_x, "max": map_y},
     }
 
@@ -156,7 +156,7 @@ class Evaluation(interaction_loops.Evaluation):
         self.minimum = float(np.array(problem.minimum)[0])
         assert isinstance(self.minimum, float)
 
-        self.obs_max, self.y_max = -np.inf, -np.inf
+        self.obs_min, self.y_min = np.inf, np.inf
         self.step = 0
         self.report_step = report_step
 
@@ -173,16 +173,17 @@ class Evaluation(interaction_loops.Evaluation):
         assert isinstance(feedback, trieste.data.Dataset)
 
         y_observed = np.array(feedback.observations)[0, 0]
-        self.obs_max = max(self.obs_max, y_observed)
+        self.obs_min = min(self.obs_min, y_observed)
 
         y_true = np.array(self.problem.objective(query))[0, 0]
-        self.y_max = max(self.y_max, y_true)
+        self.y_min = min(self.y_min, y_true)
 
         evaluation = {
-            "obs_max": self.obs_max,
+            "obs_min": self.obs_min,
             "y_true": y_true,
-            "y_max": self.y_max,
-            "regret_obs": self.obs_max - self.minimum,
+            "y_min": self.y_min,
+            "regret_obs": self.obs_min - self.minimum,
+            "regret_true": self.y_min - self.minimum,
         }
 
         if "map" in query_stats:

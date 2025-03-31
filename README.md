@@ -91,8 +91,11 @@ But I tend to just run `scripts/static_analysis.sh` and check the output.
 
 ### To do
 
-- [ ] Update README.
-- [ ] Update visualization to explicitly do Trieste.
+- [ ] Test whether Wandb reporting works as intended.
+- [ ] Figure out normalization and standardization.
+- [ ] Handle different kernels.
+- [ ] Reproduce previous results.
+- [ ] Test new models.
 - [ ] Fix all tensorflow warnings.
 - [ ] Massive clean up:
     - [ ] Remove "AI then human" remnants.
@@ -100,3 +103,5 @@ But I tend to just run `scripts/static_analysis.sh` and check the output.
     - [ ] Remove torch.
         - [ ] Remove imports.
         - [ ] Remove from dependencies.
+    - [ ] Update README.
+- [ ] Update visualization to explicitly do Trieste.

@@ -217,7 +217,7 @@ def visualize_trajectory_1D(data) -> None:
 
         except tf.errors.InvalidArgumentError:
             # Caught corner case: presumably not enough data to fit the model.
-            # Just fill in the data of interest with NaN.
+            # Just fill in the data of interest with zeros.
             gpr_post_mean = np.zeros(len(x_linspace))
             gpr_post_var = np.zeros(len(x_linspace))
             acqf_vals = np.zeros(len(x_linspace))
@@ -403,8 +403,7 @@ def visualize_trajectory_2D(data) -> None:
 
         except tf.errors.InvalidArgumentError:
             # Caught corner case: presumably not enough data to fit the model.
-            # Just fill in the data of interest with NaN.
-
+            # Just fill in the data of interest with zeros.
             gpr_post_mean = np.zeros_like(Y)
             gpr_post_mean_dist = np.zeros_like(Y)
             gpr_post_var = np.zeros_like(Y)

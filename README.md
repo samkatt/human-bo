@@ -93,7 +93,6 @@ But I tend to just run `scripts/static_analysis.sh` and check the output.
 
 - [ ] Update README.
 - [ ] Update visualization to explicitly do Trieste.
-- [ ] Support different Trieste kernels.
 - [ ] Fix all tensorflow warnings.
 - [ ] Massive clean up:
     - [ ] Remove "AI then human" remnants.

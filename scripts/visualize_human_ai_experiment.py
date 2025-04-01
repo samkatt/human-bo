@@ -409,12 +409,14 @@ def visualize_trajectory_2D(data) -> None:
         # Sometimes, for example if there is not enough data, this fails.
         # So we wrap it in a try-catch.
         try:
+            y_sta, m, v = utils.normalize(y)
             data = trieste.data.Dataset(
-                tf.convert_to_tensor(x), tf.convert_to_tensor(y[..., np.newaxis])
+                tf.convert_to_tensor(x), tf.convert_to_tensor(y_sta[..., np.newaxis])
             )
             model = core.create_trieste_gp(data, problem.search_space)
 
             y_mean, y_var = model.predict_y(tf.convert_to_tensor(X))
+            y_mean = y_mean * v + m
 
             gpr_mean = np.array(y_mean).squeeze()
             gpr_mean_err = np.array(y_mean).squeeze() - Y
@@ -422,8 +424,8 @@ def visualize_trajectory_2D(data) -> None:
 
             acqf_function = acqf.prepare_acquisition_function(model, data)
             acqf_vals = np.array(
-                acqf_function(tf.convert_to_tensor(np.expand_dims(X, -2)))
-            ).squeeze()
+                acqf_function(tf.convert_to_tensor(X.reshape(-1, 1, 2)))
+            ).reshape(Y.shape)
 
         except tf.errors.InvalidArgumentError:
             # Caught corner case: presumably not enough data to fit the model.
@@ -437,7 +439,7 @@ def visualize_trajectory_2D(data) -> None:
             {
                 "gpr_mean": gpr_mean,
                 "y_stder": y_stder,
-                "gpr_post_err": gpr_mean_err,
+                "gpr_mean_err": gpr_mean_err,
                 "queries": qs,
                 "x_init": x_init,
                 "observations": obs,
@@ -463,6 +465,7 @@ def visualize_trajectory_2D(data) -> None:
         "acqf": fig.add_subplot(2, 2, 3),
         "ax_3d": fig.add_subplot(2, 2, 4, projection="3d"),
     }
+    breakpoint()
     contours = {
         k: axs[k].contourf(x1, x2, results[-1][v], cmap="cividis")
         for k, v in contour_vals.items()
@@ -541,6 +544,13 @@ def visualize_trajectory_2D(data) -> None:
             )
 
         axs["ax_3d"].legend()
+
+        fig.suptitle(
+            "_".join(
+                conf.get_values_with_tag(exp_params, "experiment-parameter")
+                + [str(exp_params["seed"])]
+            )
+        )
         fig.canvas.draw_idle()
 
         return 0

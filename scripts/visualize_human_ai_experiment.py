@@ -201,12 +201,14 @@ def visualize_trajectory_1D(data) -> None:
         # Sometimes, for example if there is not enough data, this fails.
         # So we wrap it in a try-catch.
         try:
+            y_sta, m, v = utils.normalize(y)
             data = trieste.data.Dataset(
-                tf.convert_to_tensor(x), tf.convert_to_tensor(y[..., np.newaxis])
+                tf.convert_to_tensor(x), tf.convert_to_tensor(y_sta[..., np.newaxis])
             )
             model = core.create_trieste_gp(data, problem.search_space)
 
             y_mean, y_var = model.predict_y(tf.convert_to_tensor(x_linspace))
+            y_mean = y_mean * v + m
             _, f_var = model.model.predict_f(tf.convert_to_tensor(x_linspace))
 
             gpr_mean = np.array(y_mean).squeeze()

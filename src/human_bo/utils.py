@@ -5,6 +5,8 @@ import sys
 import traceback
 import warnings
 
+import tensorflow as tf
+
 
 def warn_with_traceback(message, category, filename, lineno, file=None, line=None):
     """Custom function to print (warning) traces properly
@@ -55,3 +57,12 @@ def exit_if_exists(path: str, negate=False):
 
 def create_directory_if_does_not_exist(path: str):
     os.makedirs(path, exist_ok=True)
+
+
+def normalize(x, mean=None, std=None):
+    if mean is None:
+        mean = tf.math.reduce_mean(x, 0, True)
+    if std is None:
+        std = tf.math.sqrt(tf.math.reduce_variance(x, 0, True))
+
+    return (x - mean) / std, mean, std

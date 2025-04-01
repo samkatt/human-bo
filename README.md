@@ -91,10 +91,9 @@ But I tend to just run `scripts/static_analysis.sh` and check the output.
 
 ### To do
 
-- [ ] Test whether Wandb reporting works as intended.
-- [ ] Figure out normalization and standardization.
-- [ ] Handle different kernels.
 - [ ] Reproduce previous results.
+- [ ] Handle different kernels.
+- [ ] Figure out normalization and standardization.
 - [ ] Test new models.
 - [ ] Fix all tensorflow warnings.
 - [ ] Massive clean up:

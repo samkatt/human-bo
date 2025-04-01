@@ -217,29 +217,17 @@ class TriesteBO(interaction_loops.Agent):
         self.search_space = search_space
         self.step = -1
         self.acqf = core.create_trieste_acqf_rule(acqf, self.search_space, acqf_options)
-
-        self.ask_tell: (
-            trieste.ask_tell_optimization.AskTellOptimizerNoTraining | None
-        ) = None
+        self.mean_acqf = core.create_trieste_acqf_rule("mean", self.search_space, {})
 
     def pick_query(self) -> tuple[Any, dict[str, Any]]:
         self.step += 1
         trieste.logging.set_step_number(self.step)
 
-        # Verify this class is used appropriately:
-        # We expect that in between each `pick_query` call, the `observe` method is called.
-        # This method will set `self.ask_tell` to `None`. If this does not happen, we crash here.
-        assert self.ask_tell is None
-
-        # Here we do the main optimization step.
-        # For this, we use `Trieste` "AskTell" interface:
-        # (https://secondmind-labs.github.io/trieste/3.1.0/notebooks/ask_tell_optimization.html)
-
-        # The real important steps are the usual, though: (1) get posterior, (2) get acquisition optimization, (3) run it.
-
-        # 1. Create the model (or return random sample if fails).
+        # Create the model (or return random sample if fails).
         try:
-            model = core.create_trieste_gp(self.data, self.search_space)
+            y_sca, y_mean, y_std = utils.normalize(self.data.observations)
+            data_sca = trieste.data.Dataset(self.data.query_points, y_sca)
+            model = core.create_trieste_gp(data_sca, self.search_space)
 
         except tf.errors.InvalidArgumentError:
             print(
@@ -247,37 +235,22 @@ class TriesteBO(interaction_loops.Agent):
             )
             return self.search_space.sample(1), {}
 
-        # 2. Create the acquisition optimizer.
-        acqf_rule: trieste.acquisition.rule.AcquisitionRule = (
-            trieste.acquisition.rule.EfficientGlobalOptimization(self.acqf)
+        # Pick query given model.
+        query = core.optimize_trieste_acqf(
+            self.acqf, data_sca, model, self.search_space
         )
 
-        # 3. Optimize.
-        self.ask_tell = trieste.ask_tell_optimization.AskTellOptimizerNoTraining(
-            self.search_space, self.data, model, acquisition_rule=acqf_rule
+        arg_map = core.optimize_trieste_acqf(
+            self.mean_acqf, data_sca, model, self.search_space
         )
-        query = self.ask_tell.ask()
-
-        # For statistics, we may be interested in the maximum a posterior: the mean of the posterior.
-        mean_rule: trieste.acquisition.rule.AcquisitionRule = (
-            trieste.acquisition.rule.EfficientGlobalOptimization(
-                trieste.acquisition.function.function.NegativePredictiveMean()
-            )
-        )
-        arg_map = mean_rule.acquire_single(self.search_space, model, self.data)
-        map_mean, _ = model.predict(arg_map)
+        # Un-normalize predicted MAP.
+        map_mean = model.predict(arg_map)[0] * y_std + y_mean
 
         return query, {"map": {"x": np.array(arg_map), "y": np.array(map_mean)}}
 
     def observe(self, query, feedback, evaluation) -> None:
         del query, evaluation
         self.data = self.data + feedback
-
-        # We will `tell` our observations if we used `self.ask_tell` to get the queries.
-        # We then set `self.ask_tell` to None, to make sure any mistaken use of this class is avoided.
-        if self.ask_tell is not None:
-            self.ask_tell.tell(feedback)
-            self.ask_tell = None
 
 
 if __name__ == "__main__":

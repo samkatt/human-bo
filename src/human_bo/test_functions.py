@@ -1,8 +1,6 @@
 """Test functions that are not implemented in BoTorch."""
 
-import tensorflow as tf
 import torch
-import trieste
 from botorch import test_functions
 from botorch.test_functions import base
 
@@ -94,49 +92,3 @@ def create_moo_test_function(
         return test_functions.BraninCurrin(noise_std=noise)
 
     raise ValueError(f"{func} is not an accepted MOO test function")
-
-
-def create_trieste_test_function(
-    func: str,
-) -> trieste.objectives.single_objectives.ObjectiveTestProblem:
-    if func == "Levy1D":
-        return trieste.objectives.single_objectives.SingleObjectiveTestProblem(
-            name="Levy 1",
-            objective=lambda x: trieste.objectives.single_objectives.levy(x, 1),
-            search_space=trieste.space.Box([0.0], [1.0]),
-            minimizers=tf.convert_to_tensor([[11 / 20]]),
-            minimum=tf.convert_to_tensor([0]),
-        )
-    if func == "Zhou":
-        return trieste.objectives.single_objectives.SingleObjectiveTestProblem(
-            name="Zhou",
-            objective=lambda x: tf.reshape(
-                -zhou(x, tf.experimental.numpy.pi, tf.exp), [-1, 1]
-            ),
-            search_space=trieste.space.Box([0.0], [1.0]),
-            minimizers=tf.convert_to_tensor([[1 / 3], [2 / 3]]),
-            minimum=tf.convert_to_tensor([-2.002595246981888]),
-        )
-    if func == "Forrester":
-        return trieste.objectives.single_objectives.SingleObjectiveTestProblem(
-            name="Forrester",
-            objective=lambda x: tf.reshape(-forrester(x, tf.sin), [-1, 1]),
-            search_space=trieste.space.Box([0.0], [1.0]),
-            minimizers=tf.convert_to_tensor([[0.7572]]),
-            minimum=tf.convert_to_tensor([-6.020738786441099]),
-        )
-    if func == "Branin":
-        return trieste.objectives.single_objectives.Branin
-
-    raise ValueError(f"{func} is not an accepted Trieste test function")
-
-
-def create_trieste_observer(f, noise_stdev) -> trieste.observer.Observer:
-    """Makes `f` noisey (with stdev `noise`) and make a Trieste observer out of it."""
-
-    def noisey_f(X):
-        y = f(X)
-        noise = tf.random.normal(y.shape, stddev=noise_stdev, dtype=y.dtype)
-        return y + noise
-
-    return trieste.objectives.utils.mk_observer(noisey_f)

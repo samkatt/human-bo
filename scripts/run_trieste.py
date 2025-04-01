@@ -13,19 +13,16 @@ import trieste.logging
 
 from human_bo import (
     conf,
-    core,
-    human_feedback_experiments,
     interaction_loops,
     reporting,
-    test_functions,
     utils,
+    trieste_api,
 )
 
 
 def main():
     """Main entry human-feedback experiments."""
     exp_conf = conf.CONFIG
-    exp_conf.update(human_feedback_experiments.CONFIG)
 
     parser = argparse.ArgumentParser(description="Command description.")
     for arg, values in exp_conf.items():
@@ -70,11 +67,11 @@ def main():
         )
 
     # Create problem and evaluation.
-    trieste_problem = test_functions.create_trieste_test_function(exp_params["problem"])
+    trieste_problem = trieste_api.create_trieste_test_function(exp_params["problem"])
     assert isinstance(
         trieste_problem, trieste.objectives.single_objectives.SingleObjectiveTestProblem
     )
-    observer = test_functions.create_trieste_observer(
+    observer = trieste_api.create_trieste_observer(
         trieste_problem.objective, noise_stdev=exp_params["problem_noise"]
     )
 
@@ -216,8 +213,10 @@ class TriesteBO(interaction_loops.Agent):
         self.data = data
         self.search_space = search_space
         self.step = -1
-        self.acqf = core.create_trieste_acqf_rule(acqf, self.search_space, acqf_options)
-        self.mean_acqf = core.create_trieste_acqf_rule("mean", self.search_space, {})
+        self.acqf = trieste_api.create_trieste_acqf(
+            acqf, self.search_space, acqf_options
+        )
+        self.mean_acqf = trieste_api.create_trieste_acqf("mean", self.search_space, {})
 
     def pick_query(self) -> tuple[Any, dict[str, Any]]:
         self.step += 1
@@ -227,7 +226,7 @@ class TriesteBO(interaction_loops.Agent):
         try:
             y_sca, y_mean, y_std = utils.normalize(self.data.observations)
             data_sca = trieste.data.Dataset(self.data.query_points, y_sca)
-            model = core.create_trieste_gp(data_sca, self.search_space)
+            model = trieste_api.create_trieste_gp(data_sca, self.search_space)
 
         except tf.errors.InvalidArgumentError:
             print(
@@ -236,11 +235,11 @@ class TriesteBO(interaction_loops.Agent):
             return self.search_space.sample(1), {}
 
         # Pick query given model.
-        query = core.optimize_trieste_acqf(
+        query = trieste_api.optimize_trieste_acqf(
             self.acqf, data_sca, model, self.search_space
         )
 
-        arg_map = core.optimize_trieste_acqf(
+        arg_map = trieste_api.optimize_trieste_acqf(
             self.mean_acqf, data_sca, model, self.search_space
         )
         # Un-normalize predicted MAP.

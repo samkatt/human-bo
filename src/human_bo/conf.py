@@ -25,16 +25,6 @@ CONFIG: dict[str, dict[str, Any]] = {
         "tags": {"experiment-hyper-parameter"},
         "parser-arguments": {"default": 0},
     },
-    "kernel": {
-        "type": str,
-        "shorthand": "k",
-        "help": "Kernel of the GP.",
-        "tags": {"experiment-parameter"},
-        "parser-arguments": {
-            "default": "Default",
-            "choices": {"RBF", "Matern", "Default"},
-        },
-    },
     "acqf": {
         "type": str,
         "shorthand": "a",

@@ -3,7 +3,6 @@
 from typing import Any, Callable
 
 import torch
-import trieste
 from botorch.acquisition import (
     analytic,
     monte_carlo,
@@ -52,58 +51,6 @@ def create_acqf(
         return qMaxValueEntropy(botorch_model, mes_candidate_set)
 
     raise ValueError(f"{acqf} is not an accepted acquisition function")
-
-
-def create_trieste_acqf_rule(
-    acqf: str,
-    search_space: trieste.space.SearchSpace,
-    acqf_options: dict[str, Any],
-) -> trieste.acquisition.interface.SingleModelAcquisitionBuilder:
-    """Creates an acquisition "rule" for Trieste to give to optimizers.
-
-    Note: the result is *state-full*, so please make sure you re-create this every time you optimize.
-    """
-    if acqf == "EI":
-        return trieste.acquisition.function.function.AugmentedExpectedImprovement()
-    if acqf == "UCB":
-        return trieste.acquisition.function.function.NegativeLowerConfidenceBound(
-            acqf_options["ucb_beta"]
-        )
-    if acqf == "MES":
-        return trieste.acquisition.function.entropy.MinValueEntropySearch(search_space)
-    if acqf == "mean":
-        return trieste.acquisition.function.function.NegativePredictiveMean()
-
-    raise ValueError(f"{acqf} is not an accepted acquisition function")
-
-
-def optimize_trieste_acqf(
-    trieste_acqf: trieste.acquisition.interface.SingleModelAcquisitionBuilder,
-    dataset: trieste.data.Dataset,
-    trieste_model: trieste.models.interfaces.ProbabilisticModel,
-    search_space: trieste.space.SearchSpace,
-):
-    trieste_rule: trieste.acquisition.rule.AcquisitionRule = (
-        trieste.acquisition.rule.EfficientGlobalOptimization(trieste_acqf)
-    )
-    return trieste_rule.acquire_single(search_space, trieste_model, dataset)
-
-
-def create_trieste_gp(
-    data: trieste.data.Dataset, search_space: trieste.space.SearchSpace
-):
-    """Factory function for creating (Trieste) posterior models.
-
-    Note: will call `optimize` on the model before returning.
-    """
-    gp = trieste.models.gpflow.models.GaussianProcessRegression(
-        trieste.models.gpflow.builders.build_gpr(
-            data, search_space, trainable_likelihood=True
-        )
-    )
-    gp.optimize(data)
-
-    return gp
 
 
 def pick_kernel(ker: str, dim: int) -> kernels.ScaleKernel | None:

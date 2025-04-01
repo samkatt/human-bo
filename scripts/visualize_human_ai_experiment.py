@@ -14,7 +14,7 @@ import torch
 import trieste
 from matplotlib.widgets import Slider
 
-from human_bo import conf, core, test_functions, utils, visualization
+from human_bo import conf, test_functions, utils, visualization, trieste_api
 from human_bo.moo import moo_core
 
 
@@ -165,11 +165,11 @@ def visualize_trajectory_1D(data) -> None:
     """
     # Load configurations and data.
     exp_params = data["conf"]
-    problem = test_functions.create_trieste_test_function(exp_params["problem"])
+    problem = trieste_api.create_trieste_test_function(exp_params["problem"])
     observer = trieste.objectives.utils.mk_observer(problem.objective)
 
     acqf_options = conf.get_entries_with_tag(exp_params, "acqf-option")
-    acqf = core.create_trieste_acqf_rule(
+    acqf = trieste_api.create_trieste_acqf(
         exp_params["acqf"], problem.search_space, acqf_options
     )
 
@@ -205,7 +205,7 @@ def visualize_trajectory_1D(data) -> None:
             data = trieste.data.Dataset(
                 tf.convert_to_tensor(x), tf.convert_to_tensor(y_sta[..., np.newaxis])
             )
-            model = core.create_trieste_gp(data, problem.search_space)
+            model = trieste_api.create_trieste_gp(data, problem.search_space)
 
             y_mean, y_var = model.predict_y(tf.convert_to_tensor(x_linspace))
             y_mean = y_mean * v + m
@@ -366,11 +366,11 @@ def visualize_trajectory_2D(data) -> None:
     """
     # Load configurations and results.
     exp_params = data["conf"]
-    problem = test_functions.create_trieste_test_function(exp_params["problem"])
+    problem = trieste_api.create_trieste_test_function(exp_params["problem"])
     observer = trieste.objectives.utils.mk_observer(problem.objective)
 
     acqf_options = conf.get_entries_with_tag(exp_params, "acqf-option")
-    acqf = core.create_trieste_acqf_rule(
+    acqf = trieste_api.create_trieste_acqf(
         exp_params["acqf"], problem.search_space, acqf_options
     )
 
@@ -413,7 +413,7 @@ def visualize_trajectory_2D(data) -> None:
             data = trieste.data.Dataset(
                 tf.convert_to_tensor(x), tf.convert_to_tensor(y_sta[..., np.newaxis])
             )
-            model = core.create_trieste_gp(data, problem.search_space)
+            model = trieste_api.create_trieste_gp(data, problem.search_space)
 
             y_mean, y_var = model.predict_y(tf.convert_to_tensor(X))
             y_mean = y_mean * v + m

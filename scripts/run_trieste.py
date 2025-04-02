@@ -11,13 +11,7 @@ import tensorflow as tf
 import trieste
 import trieste.logging
 
-from human_bo import (
-    conf,
-    interaction_loops,
-    reporting,
-    utils,
-    trieste_api,
-)
+from human_bo import conf, interaction_loops, reporting, trieste_api, utils
 
 
 def main():
@@ -90,12 +84,16 @@ def main():
 
     assert isinstance(data_init, trieste.data.Dataset)
 
-    ai = TriesteBO(
-        data_init,
-        trieste_problem.search_space,
-        exp_params["acqf"],
-        acqf_options=conf.get_entries_with_tag(exp_params, "acqf-option"),
-    )
+    if exp_params["acqf"] != "random":
+        ai = TriesteBO(
+            data_init,
+            trieste_problem.search_space,
+            exp_params["acqf"],
+            acqf_options=conf.get_entries_with_tag(exp_params, "acqf-option"),
+        )
+    else:
+        ai = trieste_api.RandomAgent(trieste_problem.search_space)
+
     problem = Problem(observer)
 
     print(f"Running experiment for {path}")

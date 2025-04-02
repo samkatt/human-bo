@@ -5,7 +5,7 @@ from typing import Any
 import tensorflow as tf
 import trieste
 
-from human_bo import test_functions
+from human_bo import interaction_loops, test_functions
 
 
 def create_trieste_acqf(
@@ -115,3 +115,15 @@ def create_trieste_observer(f, noise_stdev) -> trieste.observer.Observer:
         return y + noise
 
     return trieste.objectives.utils.mk_observer(noisey_f)
+
+
+class RandomAgent(interaction_loops.Agent):
+
+    def __init__(self, search_space: trieste.space.SearchSpace):
+        self.search_space = search_space
+
+    def pick_query(self) -> tuple[Any, dict[str, Any]]:
+        return self.search_space.sample(1), {}
+
+    def observe(self, query, feedback, evaluation) -> None:
+        del query, feedback, evaluation

@@ -14,8 +14,7 @@ import torch
 import trieste
 from matplotlib.widgets import Slider
 
-from human_bo import conf, test_functions, utils, visualization, trieste_api
-from human_bo.moo import moo_core
+from human_bo import conf, moo, test_functions, trieste_api, utils, visualization
 
 
 def get_init_points(res):
@@ -587,10 +586,10 @@ def visualize_trajectory_2D(data) -> None:
 def visualize_moo(results):
     # Re-create problem and its dimensions.
     exp_params = results["conf"]
-    problem = test_functions.create_moo_test_function(exp_params["problem"], noise=None)
-    utility_function = moo_core.create_utility_function(
-        exp_params["preference_weights"]
-    )
+    problem = trieste_api.create_trieste_test_function(exp_params["problem"], noise=None)
+    # FIX: implement (MOO) utility functionality.
+    # utility_function = moo.create_utility_function(exp_params["preference_weights"])
+    utility_function = None
 
     dim = problem.dim
     num_objs = problem.num_objectives

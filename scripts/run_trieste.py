@@ -9,7 +9,6 @@ from typing import Any
 import numpy as np
 import tensorflow as tf
 import trieste
-import trieste.logging
 
 from human_bo import conf, interaction_loops, reporting, trieste_api, utils
 
@@ -32,11 +31,6 @@ def main():
         "-f", "--save_dir", help="Name of saving directory.", type=str, required=True
     )
     parser.add_argument("--wandb", help="Wandb configuration file.", type=str)
-    parser.add_argument(
-        "--tensorboard",
-        help="Log results to `save_dir/tensorboard/experiment_name`",
-        action="store_true",
-    )
     exp_params = vars(parser.parse_args())
 
     experiment_name = "_".join(
@@ -52,14 +46,6 @@ def main():
     tf.random.set_seed(exp_params["seed"])
     np.random.seed(exp_params["seed"])
 
-    if exp_params["tensorboard"]:
-        trieste.logging.set_summary_filter(lambda _: True)
-        trieste.logging.set_tensorboard_writer(
-            tf.summary.create_file_writer(
-                exp_params["save_dir"] + "/tensorboard/" + experiment_name
-            )
-        )
-
     # Create problem and evaluation.
     trieste_problem = trieste_api.create_trieste_test_function(exp_params["problem"])
     assert isinstance(
@@ -68,6 +54,7 @@ def main():
     observer = trieste_api.create_trieste_observer(
         trieste_problem.objective, noise_stdev=exp_params["problem_noise"]
     )
+    problem = Problem(observer)
 
     report_step = (
         reporting.initiate_and_create_wandb_logger(
@@ -93,8 +80,6 @@ def main():
         )
     else:
         ai = trieste_api.RandomAgent(trieste_problem.search_space)
-
-    problem = Problem(observer)
 
     print(f"Running experiment for {path}")
     res = interaction_loops.basic_loop(ai, problem, evaluation, exp_params["budget"])
@@ -218,7 +203,6 @@ class TriesteBO(interaction_loops.Agent):
 
     def pick_query(self) -> tuple[Any, dict[str, Any]]:
         self.step += 1
-        trieste.logging.set_step_number(self.step)
 
         # Create the model (or return random sample if fails).
         try:

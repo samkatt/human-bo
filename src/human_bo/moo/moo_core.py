@@ -25,7 +25,7 @@ CONFIG = {
         "tags": {"experiment-parameter"},
         "parser-arguments": {
             "required": True,
-            "choices": {"random", "bo", "objective-learner", "utility-learner"},
+            "choices": {"bo", "objective-learner", "utility-learner"},
         },
     },
 }

@@ -3,6 +3,7 @@
 from typing import Any
 
 import tensorflow as tf
+import tensorflow_probability as tfp
 import trieste
 
 from human_bo import interaction_loops, test_functions
@@ -106,12 +107,18 @@ def create_trieste_test_function(
     raise ValueError(f"{func} is not an accepted Trieste test function")
 
 
-def create_trieste_observer(f, noise_stdev) -> trieste.observer.Observer:
-    """Makes `f` noisey (with stdev `noise`) and make a Trieste observer out of it."""
+def create_trieste_observer(f, noise_stdev: list[float]) -> trieste.observer.Observer:
+    """Makes `f` noisey (with deviation `noise_stdev`) and a Trieste observer out of it."""
+    mvn = tfp.distributions.MultivariateNormalDiag(
+        scale_diag=tf.convert_to_tensor(noise_stdev, tf.float64)
+    )
 
     def noisey_f(X):
         y = f(X)
-        noise = tf.random.normal(y.shape, stddev=noise_stdev, dtype=y.dtype)
+        noise = mvn.sample(len(y))
+
+        assert y.shape == noise.shape
+
         return y + noise
 
     return trieste.objectives.utils.mk_observer(noisey_f)

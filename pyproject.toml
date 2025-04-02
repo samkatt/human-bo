@@ -12,6 +12,7 @@ dependencies = [
   "matplotlib",
   "torch",
   "tensorflow",
+  "tensorflow_probability",
   "trieste",
   "wandb",
 ]

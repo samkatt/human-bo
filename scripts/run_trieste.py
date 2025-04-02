@@ -85,7 +85,7 @@ def main():
     assert isinstance(data_init, trieste.data.Dataset)
 
     if exp_params["acqf"] != "random":
-        ai = TriesteBO(
+        ai: interaction_loops.Agent = TriesteBO(
             data_init,
             trieste_problem.search_space,
             exp_params["acqf"],

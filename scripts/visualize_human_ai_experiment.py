@@ -169,9 +169,12 @@ def visualize_trajectory_1D(data) -> None:
     observer = trieste.objectives.utils.mk_observer(problem.objective)
 
     acqf_options = conf.get_entries_with_tag(exp_params, "acqf-option")
-    acqf = trieste_api.create_trieste_acqf(
-        exp_params["acqf"], problem.search_space, acqf_options
-    )
+    if exp_params["acqf"] != "random":
+        acqf = trieste_api.create_trieste_acqf(
+            exp_params["acqf"], problem.search_space, acqf_options
+        )
+    else:
+        acqf = None
 
     [x_min], [x_max] = problem.bounds
     x_linspace = np.linspace(x_min, x_max, 101).reshape(-1, 1)
@@ -215,10 +218,13 @@ def visualize_trajectory_1D(data) -> None:
             f_stder = 1.96 * np.sqrt(np.array(f_var).squeeze())
             y_stder = 1.96 * np.sqrt(np.array(y_var).squeeze())
 
-            acqf_function = acqf.prepare_acquisition_function(model, data)
-            acqf_vals = np.array(
-                acqf_function(tf.convert_to_tensor(x_linspace[..., np.newaxis]))
-            ).squeeze()
+            if acqf is not None:
+                acqf_function = acqf.prepare_acquisition_function(model, data)
+                acqf_vals = np.array(
+                    acqf_function(tf.convert_to_tensor(x_linspace[..., np.newaxis]))
+                ).squeeze()
+            else:
+                acqf_vals = np.zeros(len(x_linspace))
 
         except tf.errors.InvalidArgumentError:
             # Caught corner case: presumably not enough data to fit the model.
@@ -370,9 +376,12 @@ def visualize_trajectory_2D(data) -> None:
     observer = trieste.objectives.utils.mk_observer(problem.objective)
 
     acqf_options = conf.get_entries_with_tag(exp_params, "acqf-option")
-    acqf = trieste_api.create_trieste_acqf(
-        exp_params["acqf"], problem.search_space, acqf_options
-    )
+    if exp_params["acqf"] != "random":
+        acqf = trieste_api.create_trieste_acqf(
+            exp_params["acqf"], problem.search_space, acqf_options
+        )
+    else:
+        acqf = None
 
     # Pre-compute global variables.
     [x1_min, x2_min], [x1_max, x2_max] = problem.bounds
@@ -422,10 +431,13 @@ def visualize_trajectory_2D(data) -> None:
             gpr_mean_err = np.array(y_mean).squeeze() - Y
             y_stder = 1.96 * np.sqrt(np.array(y_var).squeeze())
 
-            acqf_function = acqf.prepare_acquisition_function(model, data)
-            acqf_vals = np.array(
-                acqf_function(tf.convert_to_tensor(X.reshape(-1, 1, 2)))
-            ).reshape(Y.shape)
+            if acqf is not None:
+                acqf_function = acqf.prepare_acquisition_function(model, data)
+                acqf_vals = np.array(
+                    acqf_function(tf.convert_to_tensor(X.reshape(-1, 1, 2)))
+                ).reshape(Y.shape)
+            else:
+                acqf_vals = np.zeros_like(Y)
 
         except tf.errors.InvalidArgumentError:
             # Caught corner case: presumably not enough data to fit the model.
@@ -465,7 +477,6 @@ def visualize_trajectory_2D(data) -> None:
         "acqf": fig.add_subplot(2, 2, 3),
         "ax_3d": fig.add_subplot(2, 2, 4, projection="3d"),
     }
-    breakpoint()
     contours = {
         k: axs[k].contourf(x1, x2, results[-1][v], cmap="cividis")
         for k, v in contour_vals.items()

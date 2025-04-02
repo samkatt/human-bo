@@ -30,7 +30,10 @@ CONFIG: dict[str, dict[str, Any]] = {
         "shorthand": "a",
         "help": "Acquisition function used.",
         "tags": {"experiment-parameter"},
-        "parser-arguments": {"default": "EI", "choices": {"UCB", "MES", "EI"}},
+        "parser-arguments": {
+            "default": "EI",
+            "choices": {"UCB", "MES", "EI", "random"},
+        },
     },
     "ucb_beta": {
         "type": float,

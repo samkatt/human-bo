@@ -190,3 +190,14 @@ class TriesteBO(interaction_loops.Agent):
         self.data = self.data + feedback
 
 
+def compute_utility(objectives: tf.Tensor, preference_weights: tf.Tensor) -> tf.Tensor:
+    """Calculates (linear) utility of `objectives` given `preference_weights`.
+
+    In practice, returns matrix multiplication `objectives * preference_weights`.
+
+    Will cast `objectives` into [..., o_dim] to do the multiplication.
+    """
+    assert preference_weights.ndim is not None and preference_weights.ndim <= 2
+    assert objectives.ndim == 2 and objectives.shape[-1] == preference_weights.shape[0]
+
+    return tf.matmul(objectives, tf.reshape(preference_weights, (-1, 1)))

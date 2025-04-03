@@ -1,5 +1,7 @@
 """Tests functionality of `human_bo.trieste_api`"""
 
+import numpy as np
+import pytest
 import tensorflow as tf
 import trieste
 
@@ -31,3 +33,13 @@ def test_create_moo_trieste_test_function():
 
     y = p.objective(p.search_space.sample(1))
     assert y.shape == (1, o_dim)
+
+
+def test_compute_utility():
+    """Test `trieste_api.compute_utility`"""
+    o = tf.convert_to_tensor([[0.2, 0.5], [-0.2, 0]])
+    w = tf.convert_to_tensor([0.4, 0.6])
+
+    u = trieste_api.compute_utility(o, w)
+
+    assert np.array(u) == pytest.approx(np.array([[0.38], [-0.08]]))

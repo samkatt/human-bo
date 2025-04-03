@@ -596,7 +596,9 @@ def visualize_moo(results):
     dim = exp_params["x_dim"]
     num_objs = exp_params["o_dim"]
 
-    assert isinstance(problem, trieste.objectives.multi_objectives.MultiObjectiveTestProblem)
+    assert isinstance(
+        problem, trieste.objectives.multi_objectives.MultiObjectiveTestProblem
+    )
     assert dim == exp_params["x_dim"]
 
     x_lims = [(x[0], x[1]) for x in problem.bounds]

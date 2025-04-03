@@ -52,7 +52,13 @@ def main():
     trieste_problem = trieste_api.create_trieste_test_function(
         exp_params["problem"], exp_params["x_dim"], exp_params["o_dim"]
     )
-    preference_weights = moo.sample_preference_weights(exp_params["o_dim"])
+    if exp_params["preference_weights"] is not None:
+        preference_weights = exp_params["preference_weights"]
+        assert 0.99 < sum(preference_weights) < 1.01, "Preference weights must sum to 1"
+        assert len(preference_weights) == exp_params["o_dim"], "Enter `-o` preferences"
+    else:
+        preference_weights = moo.sample_preference_weights(exp_params["o_dim"])
+
     assert isinstance(
         trieste_problem, trieste.objectives.multi_objectives.MultiObjectiveTestProblem
     )

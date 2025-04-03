@@ -3,9 +3,16 @@
 from typing import Any
 import random
 
-# TODO: get rid of short hands?
-# TODO: add preferences as configuration input.
 CONFIG: dict[str, dict[str, Any]] = {
+    "preference_weights": {
+        "type": float,
+        "shorthand": "w",
+        "help": "The (linear) utility weight preferences.",
+        "tags": {"experiment-hyper-parameter", "problem-parameters"},
+        "parser-arguments": {
+            "nargs": "+",
+        },
+    },
     "x_dim": {
         "type": int,
         "shorthand": "d",

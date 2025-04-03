@@ -92,6 +92,7 @@ But I tend to just run `scripts/static_analysis.sh` and check the output.
 ### To do
 
 - [ ] Fix all tensorflow warnings.
+- [ ] Remove `core.py` and its tests.
 - [ ] Massive clean up:
     - [ ] Remove pytorch.
     - [ ] Remove "AI then human" remnants.

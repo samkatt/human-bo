@@ -82,7 +82,7 @@ CONFIG: dict[str, dict[str, Any]] = {
         "type": float,
         "shorthand": "e",
         "help": "The Gaussian noise (variation) with which function `f` is observed.",
-        "tags": {"experiment-hyper-parameter"},
+        "tags": {"experiment-hyper-parameter", "problem-parameters"},
         "parser-arguments": {"default": [0.1], "nargs": "+"},
     },
 }

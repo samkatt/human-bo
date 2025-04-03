@@ -10,12 +10,13 @@ import numpy as np
 import tensorflow as tf
 import trieste
 
-from human_bo import conf, interaction_loops, reporting, trieste_api, utils
+from human_bo import conf, interaction_loops, moo, reporting, trieste_api, utils
 
 
 def main():
     """Main entry human-feedback experiments."""
     exp_conf = conf.CONFIG
+    exp_conf.update(moo.CONFIG)
 
     parser = argparse.ArgumentParser(description="Command description.")
     for arg, values in exp_conf.items():
@@ -33,6 +34,7 @@ def main():
     parser.add_argument("--wandb", help="Wandb configuration file.", type=str)
     exp_params = vars(parser.parse_args())
 
+    # TODO: maybe add `o_dim` and `x_dim` to name, or in other places?
     experiment_name = "_".join(
         conf.get_values_with_tag(exp_params, "experiment-parameter", exp_conf)
         + [str(exp_params["seed"])]
@@ -47,9 +49,12 @@ def main():
     np.random.seed(exp_params["seed"])
 
     # Create problem and evaluation.
-    trieste_problem = trieste_api.create_trieste_test_function(exp_params["problem"])
+    trieste_problem = trieste_api.create_trieste_test_function(
+        exp_params["problem"], exp_params["x_dim"], exp_params["o_dim"]
+    )
+    preference_weights = moo.sample_preference_weights(exp_params["o_dim"])
     assert isinstance(
-        trieste_problem, trieste.objectives.single_objectives.SingleObjectiveTestProblem
+        trieste_problem, trieste.objectives.multi_objectives.MultiObjectiveTestProblem
     )
     observer = trieste_api.create_trieste_observer(
         trieste_problem.objective, noise_stdev=exp_params["problem_noise"]
@@ -112,8 +117,9 @@ def main():
     print(f"Done experiments, saved results in {path}")
 
 
+# TODO: implement MOO here.
 class Problem(interaction_loops.Problem):
-    """The 'problem' in BO, represented by (optional) user model."""
+    """The 'problem' in MOO, represented by test and utility functions."""
 
     def __init__(self, observer: trieste.observer.Observer):
         self.observer = observer

@@ -586,15 +586,20 @@ def visualize_trajectory_2D(data) -> None:
 def visualize_moo(results):
     # Re-create problem and its dimensions.
     exp_params = results["conf"]
-    problem = trieste_api.create_trieste_test_function(exp_params["problem"], noise=None)
+    problem = trieste_api.create_trieste_test_function(
+        exp_params["problem"], exp_params["x_dim"], exp_params["o_dim"]
+    )
     # FIX: implement (MOO) utility functionality.
     # utility_function = moo.create_utility_function(exp_params["preference_weights"])
     utility_function = None
 
-    dim = problem.dim
-    num_objs = problem.num_objectives
+    dim = exp_params["x_dim"]
+    num_objs = exp_params["o_dim"]
 
-    x_lims = [(x[0], x[1]) for x in problem._bounds]
+    assert isinstance(problem, trieste.objectives.multi_objectives.MultiObjectiveTestProblem)
+    assert dim == exp_params["x_dim"]
+
+    x_lims = [(x[0], x[1]) for x in problem.bounds]
     x_linspaces = [torch.linspace(x_min, x_max, 100) for x_min, x_max in x_lims]
     X_mesh = torch.meshgrid(*x_linspaces, indexing="xy")
     O_x = problem(torch.stack(X_mesh, dim=2))

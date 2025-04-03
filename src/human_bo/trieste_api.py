@@ -2,11 +2,12 @@
 
 from typing import Any
 
+import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 import trieste
 
-from human_bo import interaction_loops, test_functions
+from human_bo import interaction_loops, test_functions, utils
 
 
 def create_trieste_acqf(
@@ -141,3 +142,51 @@ class RandomAgent(interaction_loops.Agent):
 
     def observe(self, query, feedback, evaluation) -> None:
         del query, feedback, evaluation
+
+
+class TriesteBO(interaction_loops.Agent):
+
+    def __init__(
+        self,
+        data: trieste.data.Dataset,
+        search_space: trieste.space.SearchSpace,
+        acqf: str,
+        acqf_options: dict[str, Any],
+    ):
+        self.data = data
+        self.search_space = search_space
+        self.step = -1
+        self.acqf = create_trieste_acqf(acqf, self.search_space, acqf_options)
+        self.mean_acqf = create_trieste_acqf("mean", self.search_space, {})
+
+    def pick_query(self) -> tuple[Any, dict[str, Any]]:
+        self.step += 1
+
+        # Create the model (or return random sample if fails).
+        try:
+            y_sca, y_mean, y_std = utils.normalize(self.data.observations)
+            data_sca = trieste.data.Dataset(self.data.query_points, y_sca)
+            model = create_trieste_gp(data_sca, self.search_space)
+
+        except tf.errors.InvalidArgumentError:
+            print(
+                "WARN: `TriesteBO.pick_query` failed to fit model, returning random sample."
+            )
+            return self.search_space.sample(1), {}
+
+        # Pick query given model.
+        query = optimize_trieste_acqf(self.acqf, data_sca, model, self.search_space)
+
+        arg_map = optimize_trieste_acqf(
+            self.mean_acqf, data_sca, model, self.search_space
+        )
+        # Un-normalize predicted MAP.
+        map_mean = model.predict(arg_map)[0] * y_std + y_mean
+
+        return query, {"map": {"x": np.array(arg_map), "y": np.array(map_mean)}}
+
+    def observe(self, query, feedback, evaluation) -> None:
+        del query, evaluation
+        self.data = self.data + feedback
+
+

@@ -72,6 +72,8 @@ def create_trieste_gp(
 
 def create_trieste_test_function(
     func: str,
+    x_dim: int | None = None,
+    o_dim: int | None = None,
 ) -> trieste.objectives.single_objectives.ObjectiveTestProblem:
     if func == "Levy1D":
         return trieste.objectives.single_objectives.SingleObjectiveTestProblem(
@@ -103,6 +105,11 @@ def create_trieste_test_function(
         )
     if func == "Branin":
         return trieste.objectives.single_objectives.Branin
+    if func == "DTLZ2":
+        assert x_dim is not None and x_dim > 0
+        assert o_dim is not None and o_dim > 0
+
+        return trieste.objectives.multi_objectives.DTLZ2(x_dim, o_dim)
 
     raise ValueError(f"{func} is not an accepted Trieste test function")
 

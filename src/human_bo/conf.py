@@ -51,19 +51,19 @@ CONFIG: dict[str, dict[str, Any]] = {
             "required": True,
             "choices": {
                 "Zhou": {"dims": 1, "optimal_x": [[0.34], [0.68]]},
-                "Ackley1D": {"dims": 1, "optimal_x": [[0.0]]},
-                "DixonPrice1D": {"dims": 1, "optimal_x": [[0.0]]},
-                "Griewank1D": {"dims": 1, "optimal_x": [[0.0]]},
+                # "Ackley1D": {"dims": 1, "optimal_x": [[0.0]]},
+                # "DixonPrice1D": {"dims": 1, "optimal_x": [[0.0]]},
+                # "Griewank1D": {"dims": 1, "optimal_x": [[0.0]]},
                 "Levy1D": {"dims": 1, "optimal_x": [[11 / 20]]},
-                "Rastrigin1D": {"dims": 1, "optimal_x": [[0.0]]},
-                "StyblinskiTang1D": {"dims": 1, "optimal_x": [[-39.166166]]},
+                # "Rastrigin1D": {"dims": 1, "optimal_x": [[0.0]]},
+                # "StyblinskiTang1D": {"dims": 1, "optimal_x": [[-39.166166]]},
                 "Forrester": {"dims": 1, "optimal_x": [[1.0]]},
-                "Hartmann": {
-                    "dims": 6,
-                    "optimal_x": [
-                        [0.20169, 0.150011, 0.476874, 0.275332, 0.311652, 0.6573]
-                    ],
-                },
+                # "Hartmann": {
+                #     "dims": 6,
+                #     "optimal_x": [
+                #         [0.20169, 0.150011, 0.476874, 0.275332, 0.311652, 0.6573]
+                #     ],
+                # },
                 "Branin": {
                     "dims": 2,
                     "optimal_x": [
@@ -72,8 +72,9 @@ CONFIG: dict[str, dict[str, Any]] = {
                         [9.42478, 2.475],
                     ],
                 },
-                "Rosenbrock2D": {"dims": 2, "optimal_x": [[1.0, 1.0]]},
-                "BraninCurrin": {"dims": 2, "num_objectives": 2},
+                # "Rosenbrock2D": {"dims": 2, "optimal_x": [[1.0, 1.0]]},
+                # "BraninCurrin": {"dims": 2, "num_objectives": 2},
+                "DTLZ2": {},
             },
         },
     },

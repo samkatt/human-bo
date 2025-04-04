@@ -112,6 +112,14 @@ def main():
             for i in res["query_stats"]
         ]
     )
+    map_o = [
+        (
+            i["map"]["o"][0]
+            if "map" in i and "o" in i["map"]
+            else np.full(exp_params["o_dim"], np.nan)
+        )
+        for i in res["query_stats"]
+    ]
 
     res["results"] = {
         "data_init": {
@@ -121,8 +129,9 @@ def main():
         },
         "queries": np.stack(res["query"]),
         "observations": np.stack([f.observations for f in res["feedback"]]),
+        "objectives": np.stack([r["objectives"] for r in res["feedback_stats"]]),
         "y_min": np.stack([d["y_min"] for d in res["evaluation_stats"]]),
-        "map": {"arg_max": map_x, "max": map_y},
+        "map": {"arg_max": map_x, "max": map_y, "obj": map_o},
     }
 
     with open(path, "wb") as f:

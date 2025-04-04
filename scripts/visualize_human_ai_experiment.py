@@ -413,12 +413,6 @@ def visualize_trajectory_2D(data) -> None:
 
         axs["ax_3d"].legend()
 
-        fig.suptitle(
-            "_".join(
-                conf.get_values_with_tag(exp_params, "experiment-parameter")
-                + [str(exp_params["seed"])]
-            )
-        )
         fig.canvas.draw_idle()
 
         return 0
@@ -438,6 +432,13 @@ def visualize_trajectory_2D(data) -> None:
     slider_budget.on_changed(draw_results)
 
     draw_results(n)
+
+    fig.suptitle(
+        "_".join(
+            conf.get_values_with_tag(exp_params, "experiment-parameter")
+            + [str(exp_params["seed"])]
+        )
+    )
     plt.show()
 
 
@@ -448,8 +449,12 @@ def visualize_moo(results):
         exp_params["problem"], exp_params["x_dim"], exp_params["o_dim"]
     )
     observer = trieste.objectives.utils.mk_observer(problem.objective)
-    preference_weights = tf.convert_to_tensor(exp_params["preference_weights"])
-    utility_function = lambda o: trieste_api.compute_utility(o, preference_weights)
+    preference_weights = tf.convert_to_tensor(
+        exp_params["preference_weights"], tf.float64
+    )
+
+    def utility_function(o):
+        return trieste_api.compute_utility(o, preference_weights)
 
     dim = exp_params["x_dim"]
     num_objs = exp_params["o_dim"]
@@ -505,9 +510,9 @@ def visualize_moo(results):
             "next_o": objectives[t] if t < n else None,
             "map": (
                 {
-                    "u": map_u[t].item(),
-                    "obj": map_obj[t].tolist(),
-                    "x": map_x[t].tolist(),
+                    "u": map_u[t],
+                    "obj": map_obj[t],
+                    "x": map_x[t],
                 }
                 if t < n
                 else None
@@ -535,19 +540,23 @@ def visualize_moo(results):
     # Objectives plot.
     if ax_o:
         U_o = np.array(
-            utility_function(tf.convert_to_tensor(np.stack(O_mesh, axis=-1).reshape(-1, num_objs)))
-        ).reshape(grid_n, grid_n, num_objs)
+            utility_function(
+                tf.convert_to_tensor(
+                    np.stack(O_mesh, axis=-1).reshape(-1, num_objs), tf.float64
+                )
+            )
+        ).reshape(grid_n, grid_n)
         contourf_o = ax_o.contourf(*o_linspaces, U_o, cmap="cividis")
         plt.colorbar(contourf_o, ax=ax_o)
 
         (scatter_observed_o,) = ax_o.plot(
-            objectives[:, 0],
-            objectives[:, 1],
+            objectives[..., 0],
+            objectives[..., 1],
             "ko",
             label="Observations",
         )
         (scatter_next_o,) = ax_o.plot(
-            objectives[-1, 0], objectives[-1, 1], "ro", label="Next"
+            objectives[-1, ..., 0], objectives[-1, ..., 1], "ro", label="Next"
         )
 
         (scatter_map_o,) = ax_o.plot(np.nan, np.nan, "bo", label="MAP")
@@ -571,15 +580,15 @@ def visualize_moo(results):
                     (-1, num_objs),
                 )
             )
-        ).reshape(grid_n, grid_n, 2)
+        ).reshape(grid_n, grid_n)
         contourf_x = ax_x.contourf(*x_linspaces, U_x, cmap="cividis")
         plt.colorbar(contourf_x, ax=ax_x)
 
         (scatter_map_x,) = ax_x.plot(np.nan, np.nan, "bo", label="MAP")
-        (scattered_x,) = ax_x.plot(queries[:, 0], queries[:, 1], "ko")
+        (scattered_x,) = ax_x.plot(queries[..., 0], queries[..., 1], "ko")
 
         (scattered_next_x,) = ax_x.plot(
-            queries[-1, 0], queries[-1, 1], "ro", label="Next"
+            queries[-1, ..., 0], queries[-1, ..., 1], "ro", label="Next"
         )
         ax_x.set_xlabel("x1")
         ax_x.set_ylabel("x2")
@@ -601,21 +610,23 @@ def visualize_moo(results):
 
         # Update observations.
         if scatter_observed_o:
-            scatter_observed_o.set_data(o[:, 0], o[:, 1])
+            scatter_observed_o.set_data(o[..., 0], o[..., 1])
         if scattered_x:
-            scattered_x.set_data(x[:, 0], x[:, 1])
+            scattered_x.set_data(x[..., 0], x[..., 1])
 
         # Set "next" data.
         if b < n:
             lines_u_next.set_data([b], [next_u.item()])
             if scatter_next_o:
-                scatter_next_o.set_data([next_o[0]], [next_o[1]])
+                scatter_next_o.set_data([next_o[..., 0]], [next_o[..., 1]])
             if scatter_map_o:
-                scatter_map_o.set_data([map_data["obj"][0]], [map_data["obj"][1]])
+                scatter_map_o.set_data(
+                    [map_data["obj"][..., 0]], [map_data["obj"][..., 1]]
+                )
             if scattered_next_x:
-                scattered_next_x.set_data([next_x[0]], [next_x[1]])
+                scattered_next_x.set_data([next_x[..., 0]], [next_x[..., 1]])
             if scatter_map_x:
-                scatter_map_x.set_data([map_data["x"][0]], [map_data["x"][1]])
+                scatter_map_x.set_data([map_data["x"][..., 0]], [map_data["x"][..., 1]])
         else:
             for plot in [
                 lines_u_next,
@@ -635,6 +646,13 @@ def visualize_moo(results):
     slider_budget.on_changed(draw_results)
 
     draw_results(n)
+
+    fig.suptitle(
+        "_".join(
+            conf.get_values_with_tag(exp_params, "experiment-parameter")
+            + [str(exp_params["seed"])]
+        )
+    )
     plt.show()
 
 
@@ -670,9 +688,6 @@ if __name__ == "__main__":
     # Basic setup for all visualizations.
     visualization.set_matplotlib_params()
 
-    if args.type == "y_max":
-        compare_ymax_over_time(args.files)
-
     if args.type == "trajectory":
         if len(args.files) != 1:
             raise ValueError("Please only provide 1 file when plotting trajectory")
@@ -682,16 +697,17 @@ if __name__ == "__main__":
 
         if "o_dim" in file_content["conf"]:
             visualize_moo(file_content)
+        else:
 
-        x_dim = conf.CONFIG["problem"]["parser-arguments"]["choices"][
-            file_content["conf"]["problem"]
-        ]["dims"]
+            x_dim = conf.CONFIG["problem"]["parser-arguments"]["choices"][
+                file_content["conf"]["problem"]
+            ]["dims"]
 
-        if x_dim == 1:
-            visualize_trajectory_1D(file_content)
-        if x_dim == 2:
-            visualize_trajectory_2D(file_content)
+            if x_dim == 1:
+                visualize_trajectory_1D(file_content)
+            if x_dim == 2:
+                visualize_trajectory_2D(file_content)
 
-        raise ValueError(
-            f"Experiment on {file_content['conf']['problem']} is too high-dimensional ({x_dim}) to visualize"
-        )
+            raise ValueError(
+                f"Experiment on {file_content['conf']['problem']} is too high-dimensional ({x_dim}) to visualize"
+            )

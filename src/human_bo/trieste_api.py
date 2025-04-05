@@ -106,11 +106,16 @@ def create_trieste_test_function(
         )
     if func == "Branin":
         return trieste.objectives.single_objectives.Branin
+
+    # It is MOO from here on out!
     if func == "DTLZ2":
         assert x_dim is not None and x_dim > 0
         assert o_dim is not None and o_dim > 0
-
         return trieste.objectives.multi_objectives.DTLZ2(x_dim, o_dim)
+
+    if func == "VLMOP2":
+        assert x_dim is not None and x_dim > 0
+        return trieste.objectives.multi_objectives.VLMOP2(x_dim)
 
     raise ValueError(f"{func} is not an accepted Trieste test function")
 

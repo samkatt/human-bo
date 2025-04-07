@@ -120,8 +120,18 @@ def create_trieste_test_function(
     raise ValueError(f"{func} is not an accepted Trieste test function")
 
 
-def create_trieste_observer(f, noise_stdev: list[float]) -> trieste.observer.Observer:
-    """Makes `f` noisey (with deviation `noise_stdev`) and a Trieste observer out of it."""
+def create_trieste_observer(
+    f, noise_stdev: list[float] | None
+) -> trieste.observer.Observer:
+    """Makes `f` noisey (with deviation `noise_stdev`) and a Trieste observer out of it.
+
+    If `noise_stdev` is `None`, this will return a noiseless problem `f`.
+    """
+
+    if noise_stdev is None:
+        print("WARN:creating observer without noise - your problem has no noise.")
+        return trieste.objectives.utils.mk_observer(f)
+
     mvn = tfp.distributions.MultivariateNormalDiag(
         scale_diag=tf.convert_to_tensor(noise_stdev, tf.float64)
     )

@@ -147,7 +147,7 @@ class Problem(interaction_loops.Problem):
         self,
         trieste_problem: trieste.objectives.multi_objectives.MultiObjectiveTestProblem,
         preference_weights: tf.Tensor,
-        problem_noise: list[float],
+        problem_noise: list[float] | None,
     ):
         self.observer = trieste_api.create_trieste_observer(
             trieste_problem.objective, noise_stdev=problem_noise

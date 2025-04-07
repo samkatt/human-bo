@@ -183,7 +183,6 @@ class Evaluation(interaction_loops.Evaluation):
         self.problem = problem
         self.preference_weights = preference_weights
 
-        # TODO: improve evaluation of MOO problems (e.g. MAP).
         self.obs_min, self.y_min = np.inf, np.inf
         self.step = -1
         self.report_step = report_step

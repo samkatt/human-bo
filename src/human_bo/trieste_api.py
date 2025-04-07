@@ -2,11 +2,12 @@
 
 from typing import Any
 
+import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 import trieste
 
-from human_bo import interaction_loops, test_functions
+from human_bo import interaction_loops, test_functions, utils
 
 
 def create_trieste_acqf(
@@ -72,6 +73,8 @@ def create_trieste_gp(
 
 def create_trieste_test_function(
     func: str,
+    x_dim: int | None = None,
+    o_dim: int | None = None,
 ) -> trieste.objectives.single_objectives.ObjectiveTestProblem:
     if func == "Levy1D":
         return trieste.objectives.single_objectives.SingleObjectiveTestProblem(
@@ -104,11 +107,31 @@ def create_trieste_test_function(
     if func == "Branin":
         return trieste.objectives.single_objectives.Branin
 
+    # It is MOO from here on out!
+    if func == "DTLZ2":
+        assert x_dim is not None and x_dim > 0
+        assert o_dim is not None and o_dim > 0
+        return trieste.objectives.multi_objectives.DTLZ2(x_dim, o_dim)
+
+    if func == "VLMOP2":
+        assert x_dim is not None and x_dim > 0
+        return trieste.objectives.multi_objectives.VLMOP2(x_dim)
+
     raise ValueError(f"{func} is not an accepted Trieste test function")
 
 
-def create_trieste_observer(f, noise_stdev: list[float]) -> trieste.observer.Observer:
-    """Makes `f` noisey (with deviation `noise_stdev`) and a Trieste observer out of it."""
+def create_trieste_observer(
+    f, noise_stdev: list[float] | None
+) -> trieste.observer.Observer:
+    """Makes `f` noisey (with deviation `noise_stdev`) and a Trieste observer out of it.
+
+    If `noise_stdev` is `None`, this will return a noiseless problem `f`.
+    """
+
+    if noise_stdev is None:
+        print("WARN:creating observer without noise - your problem has no noise.")
+        return trieste.objectives.utils.mk_observer(f)
+
     mvn = tfp.distributions.MultivariateNormalDiag(
         scale_diag=tf.convert_to_tensor(noise_stdev, tf.float64)
     )
@@ -134,3 +157,62 @@ class RandomAgent(interaction_loops.Agent):
 
     def observe(self, query, feedback, evaluation) -> None:
         del query, feedback, evaluation
+
+
+class TriesteBO(interaction_loops.Agent):
+
+    def __init__(
+        self,
+        data: trieste.data.Dataset,
+        search_space: trieste.space.SearchSpace,
+        acqf: str,
+        acqf_options: dict[str, Any],
+    ):
+        self.data = data
+        self.search_space = search_space
+        self.step = -1
+        self.acqf = create_trieste_acqf(acqf, self.search_space, acqf_options)
+        self.mean_acqf = create_trieste_acqf("mean", self.search_space, {})
+
+    def pick_query(self) -> tuple[Any, dict[str, Any]]:
+        self.step += 1
+
+        # Create the model (or return random sample if fails).
+        try:
+            y_sca, y_mean, y_std = utils.normalize(self.data.observations)
+            data_sca = trieste.data.Dataset(self.data.query_points, y_sca)
+            model = create_trieste_gp(data_sca, self.search_space)
+
+        except tf.errors.InvalidArgumentError:
+            print(
+                "WARN: `TriesteBO.pick_query` failed to fit model, returning random sample."
+            )
+            return self.search_space.sample(1), {}
+
+        # Pick query given model.
+        query = optimize_trieste_acqf(self.acqf, data_sca, model, self.search_space)
+
+        arg_map = optimize_trieste_acqf(
+            self.mean_acqf, data_sca, model, self.search_space
+        )
+        # Un-normalize predicted MAP.
+        map_mean = model.predict(arg_map)[0] * y_std + y_mean
+
+        return query, {"map": {"x": np.array(arg_map), "y": np.array(map_mean)}}
+
+    def observe(self, query, feedback, evaluation) -> None:
+        del query, evaluation
+        self.data = self.data + feedback
+
+
+def compute_utility(objectives: tf.Tensor, preference_weights: tf.Tensor) -> tf.Tensor:
+    """Calculates (linear) utility of `objectives` given `preference_weights`.
+
+    In practice, returns matrix multiplication `objectives * preference_weights`.
+
+    Will cast `objectives` into [..., o_dim] to do the multiplication.
+    """
+    assert preference_weights.ndim is not None and preference_weights.ndim <= 2
+    assert objectives.ndim == 2 and objectives.shape[-1] == preference_weights.shape[0]
+
+    return tf.matmul(objectives, tf.reshape(preference_weights, (-1, 1)))

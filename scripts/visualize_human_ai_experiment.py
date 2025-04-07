@@ -687,6 +687,7 @@ if __name__ == "__main__":
     # Basic setup for all visualizations.
     visualization.set_matplotlib_params()
 
+    # TODO: maybe remove this option, since it is the only one we have.
     if args.type == "trajectory":
         if len(args.files) != 1:
             raise ValueError("Please only provide 1 file when plotting trajectory")

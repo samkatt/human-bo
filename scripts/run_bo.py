@@ -4,6 +4,7 @@
 
 import argparse
 import pickle
+import random
 from typing import Any
 
 import numpy as np
@@ -45,6 +46,7 @@ def main():
 
     tf.random.set_seed(exp_params["seed"])
     np.random.seed(exp_params["seed"])
+    random.seed(exp_params["seed"])
 
     # Create problem and evaluation.
     trieste_problem = trieste_api.create_trieste_test_function(exp_params["problem"])

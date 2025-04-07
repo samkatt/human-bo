@@ -4,6 +4,7 @@
 
 import argparse
 import pickle
+import random
 from typing import Any
 
 import numpy as np
@@ -45,18 +46,19 @@ def main():
 
     tf.random.set_seed(exp_params["seed"])
     np.random.seed(exp_params["seed"])
+    random.seed(exp_params["seed"])
 
     # Create problem and evaluation.
-    if exp_params["preference_weights"] is not None:
-        preference_weights = tf.convert_to_tensor(
-            exp_params["preference_weights"], tf.float64
+    if exp_params["preference_weights"] is None:
+        exp_params["preference_weights"] = moo.sample_preference_weights(
+            exp_params["o_dim"]
         )
-        assert 0.99 < sum(preference_weights) < 1.01, "Preference weights must sum to 1"
-        assert len(preference_weights) == exp_params["o_dim"], "Enter `-o` preferences"
-    else:
-        preference_weights = tf.convert_to_tensor(
-            moo.sample_preference_weights(exp_params["o_dim"]), tf.float64
-        )
+
+    preference_weights = tf.convert_to_tensor(
+        exp_params["preference_weights"], tf.float64
+    )
+    assert 0.99 < sum(preference_weights) < 1.01, "Preference weights must sum to 1"
+    assert len(preference_weights) == exp_params["o_dim"], "Enter `| -o| ` preferences"
 
     trieste_problem = trieste_api.create_trieste_test_function(
         exp_params["problem"], exp_params["x_dim"], exp_params["o_dim"]

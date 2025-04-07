@@ -7,7 +7,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 import trieste
 
-from human_bo import interaction_loops, test_functions, utils
+from human_bo import interaction_loops, moo, test_functions, utils
 
 
 def create_trieste_acqf(
@@ -117,6 +117,27 @@ def create_trieste_test_function(
         assert x_dim is not None and x_dim > 0
         return trieste.objectives.multi_objectives.VLMOP2(x_dim)
 
+    if func == "BraninCurrin":
+        search_space = trieste.space.Box([0.0], [1.0]) ** 2
+
+        def obj(x):
+            return tf.concat(
+                (
+                    trieste.objectives.single_objectives.branin(x),
+                    test_functions.currin(x, tf.pow, tf.exp),
+                ),
+                axis=-1,
+            )
+
+        return trieste.objectives.multi_objectives.MultiObjectiveTestProblem(
+            name="BraninCurrin",
+            objective=obj,
+            search_space=search_space,
+            gen_pareto_optimal_points=lambda n, seed=None: tf.stack(
+                generate_pareto_optimal_points(n, obj, search_space), axis=-1
+            ),
+        )
+
     raise ValueError(f"{func} is not an accepted Trieste test function")
 
 
@@ -141,10 +162,33 @@ def create_trieste_observer(
         noise = mvn.sample(len(y))
 
         assert y.shape == noise.shape
-
         return y + noise
 
     return trieste.objectives.utils.mk_observer(noisey_f)
+
+
+def generate_pareto_optimal_points(n: int, objective, space: trieste.space.SearchSpace):
+    def gen():
+        x: trieste.types.TensorType = space.sample(1)
+        y: trieste.types.TensorType = objective(x)
+
+        return (x, y)
+
+    def comp(
+        d1: tuple[trieste.types.TensorType, trieste.types.TensorType],
+        d2: tuple[trieste.types.TensorType, trieste.types.TensorType],
+    ) -> int:
+        y1, y2 = d1[1], d2[1]
+        if tf.reduce_all(tf.greater(y1, y2)):
+            return 1
+        if tf.reduce_all(tf.less(y1, y2)):
+            return -1
+
+        return 0
+
+    pareto_points = moo.generate_front(n, gen, comp)
+
+    return [d[0] for d in pareto_points]
 
 
 class RandomAgent(interaction_loops.Agent):

@@ -1,7 +1,8 @@
 """Core functionality for multi-objective optimization."""
 
-from typing import Any
 import random
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 CONFIG: dict[str, dict[str, Any]] = {
     "preference_weights": {
@@ -37,3 +38,30 @@ def sample_preference_weights(o_dim: int):
     total = sum(weights)
 
     return [w / total for w in weights]
+
+
+T = TypeVar("T")
+
+
+def generate_front(n: int, gen: Callable[[], T], comp: Callable[[T, T], int]) -> set[T]:
+    """Generate `n` non-dominating points of type `T` according to `comp`."""
+    front: set[T] = set()
+
+    while len(front) < n:
+        candidate = gen()
+        dominating = set()
+
+        for x in front:
+            rel = comp(candidate, x)
+
+            if rel == 1:
+                dominating.add(x)
+            elif rel == -1:
+                assert len(dominating) == 0
+                continue
+
+        for x in dominating:
+            front.remove(x)
+        front.add(candidate)
+
+    return front

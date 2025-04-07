@@ -12,3 +12,13 @@ def zhou(X, pi, exp):
 
 def forrester(X, sin):
     return -((6 * X[..., 0] - 2) ** 2) * sin(12 * X[..., 0] - 4)
+
+
+def currin(X, power, exp):
+    x_0 = X[..., :1]
+    x_1 = X[..., 1:]
+    factor1 = 1 - exp(-1 / (2 * x_1))
+    numer = 2300 * power(x_0, 3) + 1900 * power(x_0, 2) + 2092 * x_0 + 60
+    denom = 100 * power(x_0, 3) + 500 * power(x_0, 2) + 4 * x_0 + 20
+
+    return -factor1 * numer / denom

@@ -483,7 +483,6 @@ def visualize_moo(results):
     # Get data from file.
     queries = results["results"]["queries"]
     objectives = results["results"]["objectives"]
-    # FIX: rename to `observations`?
     utilities = results["results"]["observations"]
 
     if "map" in results["results"]:
@@ -705,9 +704,9 @@ if __name__ == "__main__":
 
             if x_dim == 1:
                 visualize_trajectory_1D(file_content)
-            if x_dim == 2:
+            elif x_dim == 2:
                 visualize_trajectory_2D(file_content)
-
-            raise ValueError(
-                f"Experiment on {file_content['conf']['problem']} is too high-dimensional ({x_dim}) to visualize"
-            )
+            else:
+                raise ValueError(
+                    f"Experiment on {file_content['conf']['problem']} is too high-dimensional ({x_dim}) to visualize"
+                )

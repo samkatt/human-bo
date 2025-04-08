@@ -15,6 +15,12 @@ def forrester(X, sin):
 
 
 def currin(X, power, exp):
+    """Currin function as described most often in BO.
+
+    Approximates:
+    - max: x = [.2166, 0], y = 13.79872184813862
+    - min: x = [0, 1] , y = 1.1804080208620997
+    """
     x_0 = X[..., :1]
     x_1 = X[..., 1:]
     factor1 = 1 - exp(-1 / (2 * x_1))

@@ -110,14 +110,13 @@ def create_trieste_test_function(
         )
     if func == "Branin":
         return trieste.objectives.single_objectives.Branin
-    if func == "InverseBranin":
-        branin = trieste.objectives.single_objectives.Branin
+    if func == "Currin":
         return trieste.objectives.single_objectives.SingleObjectiveTestProblem(
-            name="InverseBranin",
-            objective=lambda x: -branin.objective(x),
-            search_space=branin.search_space,
-            minimizers=None,  # XXX: I do not know these.
-            minimum=None,  # XXX: I do not know these.
+            name="Currin",
+            objective=lambda x: test_functions.currin(x, tf.pow, tf.exp),
+            search_space=trieste.space.Box([0.0], [1.0]) ** 2,
+            minimizers=tf.convert_to_tensor([[0.0, 1.0]]),
+            minimum=tf.convert_to_tensor([1.1804080208620997]),
         )
 
     # It is MOO from here on out!
@@ -145,26 +144,6 @@ def create_trieste_test_function(
         return trieste.objectives.multi_objectives.MultiObjectiveTestProblem(
             name="BraninCurrin",
             objective=bc,
-            search_space=search_space,
-            gen_pareto_optimal_points=lambda n, seed=None: tf.stack(
-                generate_pareto_optimal_points(n, bc, search_space), axis=-1
-            ),
-        )
-    if func == "InverseBraninCurrin":
-        search_space = trieste.space.Box([0.0], [1.0]) ** 2
-
-        def inverse_bc(x: trieste.types.TensorType) -> trieste.types.TensorType:
-            return tf.concat(
-                (
-                    -trieste.objectives.single_objectives.branin(x),
-                    -test_functions.currin(x, tf.pow, tf.exp),
-                ),
-                axis=-1,
-            )
-
-        return trieste.objectives.multi_objectives.MultiObjectiveTestProblem(
-            name="BraninCurrin",
-            objective=inverse_bc,
             search_space=search_space,
             gen_pareto_optimal_points=lambda n, seed=None: tf.stack(
                 generate_pareto_optimal_points(n, bc, search_space), axis=-1

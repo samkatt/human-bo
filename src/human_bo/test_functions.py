@@ -21,4 +21,4 @@ def currin(X, power, exp):
     numer = 2300 * power(x_0, 3) + 1900 * power(x_0, 2) + 2092 * x_0 + 60
     denom = 100 * power(x_0, 3) + 500 * power(x_0, 2) + 4 * x_0 + 20
 
-    return -factor1 * numer / denom
+    return factor1 * numer / denom

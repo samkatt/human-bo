@@ -1,7 +1,5 @@
 """Tests functionality of `human_bo.trieste_api`"""
 
-import numpy as np
-import pytest
 import tensorflow as tf
 import trieste
 
@@ -35,6 +33,30 @@ def test_create_moo_trieste_test_function():
     assert y.shape == (1, o_dim)
 
 
+def test_inverse_BraninCurrin():
+    """Tests creating (inverse) Branin with `trieste_api.create_trieste_test_function`."""
+
+    # test InverseBranin
+    inverse_branin = trieste_api.create_trieste_test_function("InverseBranin")
+
+    x = tf.convert_to_tensor([[0, 0], [0.5, 0.5], [1, 1]])
+
+    # I got this from calling Botorch's implementation and negating the output.
+    y_inverse_branin = tf.convert_to_tensor([[-308.1291], [-24.1300], [-145.8722]])
+
+    assert tf.reduce_all(
+        tf.experimental.numpy.isclose(y_inverse_branin, inverse_branin.objective(x))
+    )
+
+    # test InverseBraninCurrin
+    y_inverse_currin = tf.convert_to_tensor([[-3.0000], [-7.4051], [-4.0053]])
+    y_inverse_bc = tf.concat((y_inverse_branin, y_inverse_currin), axis=-1)
+
+    bc = trieste_api.create_trieste_test_function("InverseBraninCurrin")
+
+    assert tf.reduce_all(tf.experimental.numpy.isclose(y_inverse_bc, bc.objective(x)))
+
+
 def test_compute_utility():
     """Test `trieste_api.compute_utility`."""
     o = tf.convert_to_tensor([[0.2, 0.5], [-0.2, 0]])
@@ -42,7 +64,9 @@ def test_compute_utility():
 
     u = trieste_api.compute_utility(o, w)
 
-    assert np.array(u) == pytest.approx(np.array([[0.38], [-0.08]]))
+    assert tf.reduce_all(
+        tf.experimental.numpy.isclose(u, tf.convert_to_tensor([[0.38], [-0.08]]))
+    )
 
 
 def test_create_trieste_observer():

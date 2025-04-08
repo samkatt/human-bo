@@ -106,6 +106,15 @@ def create_trieste_test_function(
         )
     if func == "Branin":
         return trieste.objectives.single_objectives.Branin
+    if func == "InverseBranin":
+        branin = trieste.objectives.single_objectives.Branin
+        return trieste.objectives.single_objectives.SingleObjectiveTestProblem(
+            name="InverseBranin",
+            objective=lambda x: -branin.objective(x),
+            search_space=branin.search_space,
+            minimizers=None,  # XXX: I do not know these.
+            minimum=None,  # XXX: I do not know these.
+        )
 
     # It is MOO from here on out!
     if func == "DTLZ2":
@@ -125,6 +134,26 @@ def create_trieste_test_function(
                 (
                     trieste.objectives.single_objectives.branin(x),
                     test_functions.currin(x, tf.pow, tf.exp),
+                ),
+                axis=-1,
+            )
+
+        return trieste.objectives.multi_objectives.MultiObjectiveTestProblem(
+            name="BraninCurrin",
+            objective=obj,
+            search_space=search_space,
+            gen_pareto_optimal_points=lambda n, seed=None: tf.stack(
+                generate_pareto_optimal_points(n, obj, search_space), axis=-1
+            ),
+        )
+    if func == "InverseBraninCurrin":
+        search_space = trieste.space.Box([0.0], [1.0]) ** 2
+
+        def obj(x):
+            return tf.concat(
+                (
+                    -trieste.objectives.single_objectives.branin(x),
+                    -test_functions.currin(x, tf.pow, tf.exp),
                 ),
                 axis=-1,
             )

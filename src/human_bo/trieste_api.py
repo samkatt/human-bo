@@ -22,6 +22,10 @@ def create_trieste_acqf(
     if acqf == "EI":
         return trieste.acquisition.function.function.AugmentedExpectedImprovement()
     if acqf == "UCB":
+        assert "ucb_beta" in acqf_options, "UCB expects a `ucb_value`."
+        assert isinstance(acqf_options["ucb_beta"], float), "`ucb_value` must be float."
+        assert acqf_options["ucb_beta"] >= 0, "`ucb_value` must be positive."
+
         return trieste.acquisition.function.function.NegativeLowerConfidenceBound(
             acqf_options["ucb_beta"]
         )
@@ -129,7 +133,7 @@ def create_trieste_test_function(
     if func == "BraninCurrin":
         search_space = trieste.space.Box([0.0], [1.0]) ** 2
 
-        def obj(x):
+        def bc(x: trieste.types.TensorType) -> trieste.types.TensorType:
             return tf.concat(
                 (
                     trieste.objectives.single_objectives.branin(x),
@@ -140,16 +144,16 @@ def create_trieste_test_function(
 
         return trieste.objectives.multi_objectives.MultiObjectiveTestProblem(
             name="BraninCurrin",
-            objective=obj,
+            objective=bc,
             search_space=search_space,
             gen_pareto_optimal_points=lambda n, seed=None: tf.stack(
-                generate_pareto_optimal_points(n, obj, search_space), axis=-1
+                generate_pareto_optimal_points(n, bc, search_space), axis=-1
             ),
         )
     if func == "InverseBraninCurrin":
         search_space = trieste.space.Box([0.0], [1.0]) ** 2
 
-        def obj(x):
+        def inverse_bc(x: trieste.types.TensorType) -> trieste.types.TensorType:
             return tf.concat(
                 (
                     -trieste.objectives.single_objectives.branin(x),
@@ -160,10 +164,10 @@ def create_trieste_test_function(
 
         return trieste.objectives.multi_objectives.MultiObjectiveTestProblem(
             name="BraninCurrin",
-            objective=obj,
+            objective=inverse_bc,
             search_space=search_space,
             gen_pareto_optimal_points=lambda n, seed=None: tf.stack(
-                generate_pareto_optimal_points(n, obj, search_space), axis=-1
+                generate_pareto_optimal_points(n, bc, search_space), axis=-1
             ),
         )
 

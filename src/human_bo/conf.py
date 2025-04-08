@@ -40,7 +40,7 @@ CONFIG: dict[str, dict[str, Any]] = {
         "shorthand": "c",
         "help": "Exploration constant used in UCB",
         "tags": {"acqf-option", "experiment-hyper-parameter"},
-        "parser-arguments": {"default": 0.2},
+        "parser-arguments": {},
     },
     "problem": {
         "type": str,

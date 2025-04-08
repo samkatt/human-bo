@@ -1,5 +1,6 @@
 """Tests functionality of `human_bo.trieste_api`"""
 
+import pytest
 import tensorflow as tf
 import trieste
 
@@ -87,3 +88,11 @@ def test_create_trieste_observer():
 
     tf.assert_equal(y, data_no_noise.observations)
     tf.debugging.assert_none_equal(y, data_noise.observations)
+
+
+def test_create_trieste_acqf():
+    """Tests `trieste_api`.create_trieste_acqf."""
+    # Test UCB will fail "gracefully" when not given a UCB beta value.
+
+    with pytest.raises(AssertionError):
+        trieste_api.create_trieste_acqf("UCB", trieste.space.Box([0], [1]), {})

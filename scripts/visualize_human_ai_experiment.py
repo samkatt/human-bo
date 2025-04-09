@@ -11,7 +11,7 @@ import tensorflow as tf
 import trieste
 from matplotlib.widgets import Slider
 
-from human_bo import conf, trieste_api, utils, visualization
+from human_bo import conf, posteriors, trieste_api, utils, visualization
 
 
 def visualize_trajectory_1D(data) -> None:
@@ -65,7 +65,7 @@ def visualize_trajectory_1D(data) -> None:
             data = trieste.data.Dataset(
                 tf.convert_to_tensor(x), tf.convert_to_tensor(y_sta[..., np.newaxis])
             )
-            model = trieste_api.create_trieste_gp(data, problem.search_space)
+            model = posteriors.create_trieste_gp(data, problem.search_space)
 
             y_mean, y_var = model.predict_y(tf.convert_to_tensor(x_linspace))
             y_mean = y_mean * v + m
@@ -279,7 +279,7 @@ def visualize_trajectory_2D(data) -> None:
             data = trieste.data.Dataset(
                 tf.convert_to_tensor(x), tf.convert_to_tensor(y_sta[..., np.newaxis])
             )
-            model = trieste_api.create_trieste_gp(data, problem.search_space)
+            model = posteriors.create_trieste_gp(data, problem.search_space)
 
             y_mean, y_var = model.predict_y(tf.convert_to_tensor(X))
             y_mean = y_mean * v + m

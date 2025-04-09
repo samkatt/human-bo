@@ -7,7 +7,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 import trieste
 
-from human_bo import interaction_loops, moo, test_functions, utils
+from human_bo import interaction_loops, moo, posteriors, test_functions, utils
 
 
 def create_trieste_acqf(
@@ -56,23 +56,6 @@ def optimize_trieste_acqf(
         trieste.acquisition.rule.EfficientGlobalOptimization(trieste_acqf)
     )
     return trieste_rule.acquire_single(search_space, trieste_model, dataset)
-
-
-def create_trieste_gp(
-    data: trieste.data.Dataset, search_space: trieste.space.SearchSpace
-):
-    """Factory function for creating (Trieste) posterior models.
-
-    Note: will call `optimize` on the model before returning.
-    """
-    gp = trieste.models.gpflow.models.GaussianProcessRegression(
-        trieste.models.gpflow.builders.build_gpr(
-            data, search_space, trainable_likelihood=True
-        )
-    )
-    gp.optimize(data)
-
-    return gp
 
 
 def create_trieste_test_function(
@@ -249,7 +232,7 @@ class TriesteBO(interaction_loops.Agent):
         try:
             y_sca, y_mean, y_std = utils.normalize(self.data.observations)
             data_sca = trieste.data.Dataset(self.data.query_points, y_sca)
-            model = create_trieste_gp(data_sca, self.search_space)
+            model = posteriors.create_trieste_gp(data_sca, self.search_space)
 
         except tf.errors.InvalidArgumentError:
             print(

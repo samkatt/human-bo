@@ -2,7 +2,6 @@
 
 from typing import Any
 
-# TODO: consider adding "negate" flag.
 CONFIG: dict[str, dict[str, Any]] = {
     "seed": {
         "type": int,

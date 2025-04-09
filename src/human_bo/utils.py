@@ -59,10 +59,8 @@ def create_directory_if_does_not_exist(path: str):
     os.makedirs(path, exist_ok=True)
 
 
-def normalize(x, mean=None, std=None):
-    if mean is None:
-        mean = tf.math.reduce_mean(x, 0, True)
-    if std is None:
-        std = tf.math.sqrt(tf.math.reduce_variance(x, 0, True))
+def normalize(x):
+    mean = tf.math.reduce_mean(x, 0, True)
+    std = tf.math.sqrt(tf.math.reduce_variance(x, 0, True))
 
     return (x - mean) / std, mean, std

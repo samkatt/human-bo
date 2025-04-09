@@ -180,7 +180,13 @@ def create_trieste_observer(
 
 
 def generate_pareto_optimal_points(n: int, objective, space: trieste.space.SearchSpace):
+    """A very dumb basic random sampling function.
+
+    Creates a random sampler, and keeps those that are not dominated.
+    """
+
     def gen():
+        """Our super simple random sampler of `(x, y)` data."""
         x: trieste.types.TensorType = space.sample(1)
         y: trieste.types.TensorType = objective(x)
 
@@ -190,14 +196,20 @@ def generate_pareto_optimal_points(n: int, objective, space: trieste.space.Searc
         d1: tuple[trieste.types.TensorType, trieste.types.TensorType],
         d2: tuple[trieste.types.TensorType, trieste.types.TensorType],
     ) -> int:
+        """Our comparison function over two tensors.
+
+        If `y_1 < y_2` -> 1,  if `y_1 > y_2` -> -1, else returns 0.
+        """
+
         y1, y2 = d1[1], d2[1]
-        if tf.reduce_all(tf.greater(y1, y2)):
-            return 1
         if tf.reduce_all(tf.less(y1, y2)):
+            return 1
+        if tf.reduce_all(tf.greater(y1, y2)):
             return -1
 
         return 0
 
+    # Here we filter out the non-dominating.
     pareto_points = moo.generate_front(n, gen, comp)
 
     return [d[0] for d in pareto_points]
@@ -261,14 +273,18 @@ class TriesteBO(interaction_loops.Agent):
         self.data = self.data + feedback
 
 
-def compute_utility(objectives: tf.Tensor, preference_weights: tf.Tensor) -> tf.Tensor:
-    """Calculates (linear) utility of `objectives` given `preference_weights`.
+def scalarize_objectives(
+    objectives: tf.Tensor, scalarization_weights: tf.Tensor
+) -> tf.Tensor:
+    """Calculates (linear) combination of `objectives` given `scalarization_weights`.
 
-    In practice, returns matrix multiplication `objectives * preference_weights`.
+    In practice, returns matrix multiplication `objectives * scalarization_weights`.
 
     Will cast `objectives` into [..., o_dim] to do the multiplication.
     """
-    assert preference_weights.ndim is not None and preference_weights.ndim <= 2
-    assert objectives.ndim == 2 and objectives.shape[-1] == preference_weights.shape[0]
+    assert scalarization_weights.ndim is not None and scalarization_weights.ndim <= 2
+    assert (
+        objectives.ndim == 2 and objectives.shape[-1] == scalarization_weights.shape[0]
+    )
 
-    return tf.matmul(objectives, tf.reshape(preference_weights, (-1, 1)))
+    return tf.matmul(objectives, tf.reshape(scalarization_weights, (-1, 1)))

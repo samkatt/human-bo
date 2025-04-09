@@ -5,10 +5,10 @@ from collections.abc import Callable
 from typing import Any, TypeVar
 
 CONFIG: dict[str, dict[str, Any]] = {
-    "preference_weights": {
+    "scalarization_weights": {
         "type": float,
         "shorthand": "w",
-        "help": "The (linear) utility weight preferences.",
+        "help": "The (linear) scalarization weights.",
         "tags": {"experiment-hyper-parameter", "problem-parameters"},
         "parser-arguments": {
             "nargs": "+",
@@ -31,7 +31,7 @@ CONFIG: dict[str, dict[str, Any]] = {
 }
 
 
-def sample_preference_weights(o_dim: int):
+def sample_scalarization_weights(o_dim: int):
     assert o_dim > 1
 
     weights = [random.uniform(0, 1) for _ in range(o_dim)]

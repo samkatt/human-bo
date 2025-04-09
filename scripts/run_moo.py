@@ -49,16 +49,16 @@ def main():
     random.seed(exp_params["seed"])
 
     # Create problem and evaluation.
-    if exp_params["preference_weights"] is None:
-        exp_params["preference_weights"] = moo.sample_preference_weights(
+    if exp_params["scalarization_weights"] is None:
+        exp_params["scalarization_weights"] = moo.sample_scalarization_weights(
             exp_params["o_dim"]
         )
 
-    preference_weights = tf.convert_to_tensor(
-        exp_params["preference_weights"], tf.float64
+    scalarization_weights = tf.convert_to_tensor(
+        exp_params["scalarization_weights"], tf.float64
     )
-    assert 0.99 < sum(preference_weights) < 1.01, "Preference weights must sum to 1"
-    assert len(preference_weights) == exp_params["o_dim"], "Enter `| -o| ` preferences"
+    assert 0.99 < sum(scalarization_weights) < 1.01, "Preference weights must sum to 1"
+    assert len(scalarization_weights) == exp_params["o_dim"], "Enter `| -o| ` scalars"
 
     trieste_problem = trieste_api.create_trieste_test_function(
         exp_params["problem"], exp_params["x_dim"], exp_params["o_dim"]
@@ -66,7 +66,9 @@ def main():
     assert isinstance(
         trieste_problem, trieste.objectives.multi_objectives.MultiObjectiveTestProblem
     )
-    problem = Problem(trieste_problem, preference_weights, exp_params["problem_noise"])
+    problem = Problem(
+        trieste_problem, scalarization_weights, exp_params["problem_noise"]
+    )
 
     report_step = (
         reporting.initiate_and_create_wandb_logger(
@@ -75,7 +77,7 @@ def main():
         if exp_params["wandb"]
         else reporting.print_dot
     )
-    evaluation = Evaluation(trieste_problem, preference_weights, report_step)
+    evaluation = Evaluation(trieste_problem, scalarization_weights, report_step)
 
     # Create Agents
     x_init = trieste_problem.search_space.sample(exp_params["n_init"])
@@ -85,7 +87,7 @@ def main():
     )
     data_init = trieste.data.Dataset(
         x_init,
-        trieste_api.compute_utility(o_init.observations, preference_weights),
+        trieste_api.scalarize_objectives(o_init.observations, scalarization_weights),
     )
 
     if exp_params["acqf"] != "random":
@@ -143,30 +145,30 @@ def main():
 
 
 class Problem(interaction_loops.Problem):
-    """The 'problem' in MOO, represented by test and utility functions."""
+    """The 'problem' in MOO, represented by test and scalar functions."""
 
     def __init__(
         self,
         trieste_problem: trieste.objectives.multi_objectives.MultiObjectiveTestProblem,
-        preference_weights: tf.Tensor,
+        scalarization_weights: tf.Tensor,
         problem_noise: list[float] | None,
     ):
         self.observer = trieste_api.create_trieste_observer(
             trieste_problem.objective, noise_stdev=problem_noise
         )
-        self.preference_weights = preference_weights
+        self.scalarization_weights = scalarization_weights
 
     def give_feedback(self, query) -> tuple[Any, dict[str, Any]]:
         objectives = self.observer(query)
         assert isinstance(objectives, trieste.data.Dataset)
         assert isinstance(objectives.observations, tf.Tensor)
 
-        utility = trieste_api.compute_utility(
-            objectives.observations, self.preference_weights
+        cost = trieste_api.scalarize_objectives(
+            objectives.observations, self.scalarization_weights
         )
 
-        # The agent gets to observe only the outcome utility, so the feedback is `(x, u)`.
-        feedback = trieste.data.Dataset(query, utility)
+        # The agent gets to observe only the outcome cost, so the feedback is `(x, u)`.
+        feedback = trieste.data.Dataset(query, cost)
         return feedback, {"objectives": np.array(objectives.observations)}
 
     def observe(self, query, feedback, evaluation) -> None:
@@ -179,11 +181,11 @@ class Evaluation(interaction_loops.Evaluation):
     def __init__(
         self,
         problem: trieste.objectives.multi_objectives.MultiObjectiveTestProblem,
-        preference_weights: tf.Tensor,
+        scalarization_weights: tf.Tensor,
         report_step: reporting.StepReport,
     ):
         self.problem = problem
-        self.preference_weights = preference_weights
+        self.scalarization_weights = scalarization_weights
 
         self.obs_min, self.y_min = np.inf, np.inf
         self.step = -1
@@ -206,9 +208,9 @@ class Evaluation(interaction_loops.Evaluation):
         o_true = self.problem.objective(query)
         assert isinstance(o_true, tf.Tensor)
 
-        y_true = np.array(trieste_api.compute_utility(o_true, self.preference_weights))[
-            0, 0
-        ]
+        y_true = np.array(
+            trieste_api.scalarize_objectives(o_true, self.scalarization_weights)
+        )[0, 0]
         self.y_min = min(self.y_min, y_true)
 
         evaluation = {

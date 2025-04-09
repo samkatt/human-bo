@@ -449,12 +449,12 @@ def visualize_moo(results):
         exp_params["problem"], exp_params["x_dim"], exp_params["o_dim"]
     )
     observer = trieste.objectives.utils.mk_observer(problem.objective)
-    preference_weights = tf.convert_to_tensor(
-        exp_params["preference_weights"], tf.float64
+    scalarization_weights = tf.convert_to_tensor(
+        exp_params["scalarization_weights"], tf.float64
     )
 
-    def utility_function(o):
-        return trieste_api.compute_utility(o, preference_weights)
+    def cost_function(o):
+        return trieste_api.scalarize_objectives(o, scalarization_weights)
 
     dim = exp_params["x_dim"]
     num_objs = exp_params["o_dim"]
@@ -539,7 +539,7 @@ def visualize_moo(results):
     # Objectives plot.
     if ax_o:
         U_o = np.array(
-            utility_function(
+            cost_function(
                 tf.convert_to_tensor(
                     np.stack(O_mesh, axis=-1).reshape(-1, num_objs), tf.float64
                 )
@@ -571,7 +571,7 @@ def visualize_moo(results):
     # Query plot.
     if ax_x:
         U_x = np.array(
-            utility_function(
+            cost_function(
                 tf.reshape(
                     observer(
                         tf.convert_to_tensor(np.stack(X_mesh, axis=-1))

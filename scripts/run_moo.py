@@ -87,7 +87,7 @@ def main():
     )
     data_init = trieste.data.Dataset(
         x_init,
-        trieste_api.scalarize_objectives(o_init.observations, scalarization_weights),
+        moo.scalarize_objectives(o_init.observations, scalarization_weights),
     )
 
     if exp_params["acqf"] != "random":
@@ -163,7 +163,7 @@ class Problem(interaction_loops.Problem):
         assert isinstance(objectives, trieste.data.Dataset)
         assert isinstance(objectives.observations, tf.Tensor)
 
-        cost = trieste_api.scalarize_objectives(
+        cost = moo.scalarize_objectives(
             objectives.observations, self.scalarization_weights
         )
 
@@ -208,9 +208,9 @@ class Evaluation(interaction_loops.Evaluation):
         o_true = self.problem.objective(query)
         assert isinstance(o_true, tf.Tensor)
 
-        y_true = np.array(
-            trieste_api.scalarize_objectives(o_true, self.scalarization_weights)
-        )[0, 0]
+        y_true = np.array(moo.scalarize_objectives(o_true, self.scalarization_weights))[
+            0, 0
+        ]
         self.y_min = min(self.y_min, y_true)
 
         evaluation = {

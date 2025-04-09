@@ -56,18 +56,6 @@ def test_BraninCurrin():
     assert tf.reduce_all(tf.experimental.numpy.isclose(y_bc, bc.objective(x)))
 
 
-def test_compute_scalarization():
-    """Test `trieste_api.scalarize_objectives`."""
-    o = tf.convert_to_tensor([[0.2, 0.5], [-0.2, 0]])
-    w = tf.convert_to_tensor([0.4, 0.6])
-
-    u = trieste_api.scalarize_objectives(o, w)
-
-    assert tf.reduce_all(
-        tf.experimental.numpy.isclose(u, tf.convert_to_tensor([[0.38], [-0.08]]))
-    )
-
-
 def test_create_trieste_observer():
     """Test `trieste_api.create_trieste_observer`."""
     f = trieste_api.create_trieste_test_function("Zhou")

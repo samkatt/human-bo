@@ -4,6 +4,8 @@ import random
 from collections.abc import Callable
 from typing import Any, TypeVar
 
+import tensorflow as tf
+
 CONFIG: dict[str, dict[str, Any]] = {
     "scalarization_weights": {
         "type": float,
@@ -38,6 +40,23 @@ def sample_scalarization_weights(o_dim: int):
     total = sum(weights)
 
     return [w / total for w in weights]
+
+
+def scalarize_objectives(
+    objectives: tf.Tensor, scalarization_weights: tf.Tensor
+) -> tf.Tensor:
+    """Calculates (linear) combination of `objectives` given `scalarization_weights`.
+
+    In practice, returns matrix multiplication `objectives * scalarization_weights`.
+
+    Will cast `objectives` into [..., o_dim] to do the multiplication.
+    """
+    assert scalarization_weights.ndim is not None and scalarization_weights.ndim <= 2
+    assert (
+        objectives.ndim == 2 and objectives.shape[-1] == scalarization_weights.shape[0]
+    )
+
+    return tf.matmul(objectives, tf.reshape(scalarization_weights, (-1, 1)))
 
 
 T = TypeVar("T")

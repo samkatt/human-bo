@@ -254,20 +254,3 @@ class TriesteBO(interaction_loops.Agent):
     def observe(self, query, feedback, evaluation) -> None:
         del query, evaluation
         self.data = self.data + feedback
-
-
-def scalarize_objectives(
-    objectives: tf.Tensor, scalarization_weights: tf.Tensor
-) -> tf.Tensor:
-    """Calculates (linear) combination of `objectives` given `scalarization_weights`.
-
-    In practice, returns matrix multiplication `objectives * scalarization_weights`.
-
-    Will cast `objectives` into [..., o_dim] to do the multiplication.
-    """
-    assert scalarization_weights.ndim is not None and scalarization_weights.ndim <= 2
-    assert (
-        objectives.ndim == 2 and objectives.shape[-1] == scalarization_weights.shape[0]
-    )
-
-    return tf.matmul(objectives, tf.reshape(scalarization_weights, (-1, 1)))

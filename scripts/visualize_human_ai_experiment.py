@@ -11,7 +11,7 @@ import tensorflow as tf
 import trieste
 from matplotlib.widgets import Slider
 
-from human_bo import conf, posteriors, trieste_api, utils, visualization
+from human_bo import conf, moo, posteriors, trieste_api, utils, visualization
 
 
 def visualize_trajectory_1D(data) -> None:
@@ -454,7 +454,7 @@ def visualize_moo(results):
     )
 
     def cost_function(o):
-        return trieste_api.scalarize_objectives(o, scalarization_weights)
+        return moo.scalarize_objectives(o, scalarization_weights)
 
     dim = exp_params["x_dim"]
     num_objs = exp_params["o_dim"]

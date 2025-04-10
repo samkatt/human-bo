@@ -648,7 +648,9 @@ def visualize_moo(results):
 
     fig.suptitle(
         "_".join(
-            conf.get_values_with_tag(exp_params, "experiment-parameter")
+            conf.get_values_with_tag(
+                exp_params, "experiment-parameter", dict(conf.CONFIG, **moo.CONFIG)
+            )
             + [str(exp_params["seed"])]
         )
     )

@@ -85,20 +85,35 @@ def main():
     assert isinstance(o_init, trieste.data.Dataset) and isinstance(
         o_init.observations, tf.Tensor
     )
-    data_init = trieste.data.Dataset(
-        x_init,
-        moo.scalarize_objectives(o_init.observations, scalarization_weights),
-    )
+    y_init = moo.scalarize_objectives(o_init.observations, scalarization_weights)
 
-    if exp_params["acqf"] != "random":
+    if exp_params["type_agent"] == "bo":
+        data_init = trieste.data.Dataset(
+            x_init,
+            y_init,
+        )
         ai: interaction_loops.Agent = trieste_api.TriesteBO(
             data_init,
             trieste_problem.search_space,
             exp_params["acqf"],
             acqf_options=conf.get_entries_with_tag(exp_params, "acqf-option"),
         )
-    else:
+
+    elif exp_params["type_agent"] == "composite":
+        data_init = o_init
+        ai = trieste_api.CompositeBO(
+            exp_params["scalarization_weights"],
+            data_init,
+            trieste_problem.search_space,
+            exp_params["acqf"],
+            acqf_options=conf.get_entries_with_tag(exp_params, "acqf-option"),
+        )
+
+    elif exp_params["type_agent"] == "random":
         ai = trieste_api.RandomAgent(trieste_problem.search_space)
+
+    else:
+        raise ValueError(f"{exp_params['type_agent']} is not supported")
 
     print(f"Running experiment for {path}")
     res = interaction_loops.basic_loop(ai, problem, evaluation, exp_params["budget"])
@@ -128,12 +143,12 @@ def main():
     res["results"] = {
         "data_init": {
             "x": np.array(x_init),
-            "o": np.array(o_init),
-            "y": np.array(data_init.observations),
+            "o": np.array(o_init.observations),
+            "y": np.array(y_init),
         },
         "queries": np.stack(res["query"]),
-        "observations": np.stack([f.observations for f in res["feedback"]]),
-        "objectives": np.stack([r["objectives"] for r in res["feedback_stats"]]),
+        "observations": np.stack([f["cost"].observations for f in res["feedback"]]),
+        "objectives": np.stack([r["objectives"].observations for r in res["feedback"]]),
         "y_min": np.stack([d["y_min"] for d in res["evaluation_stats"]]),
         "map": {"arg_max": map_x, "max": map_y, "obj": map_o},
     }
@@ -160,16 +175,17 @@ class Problem(interaction_loops.Problem):
 
     def give_feedback(self, query) -> tuple[Any, dict[str, Any]]:
         objectives = self.observer(query)
+
         assert isinstance(objectives, trieste.data.Dataset)
         assert isinstance(objectives.observations, tf.Tensor)
 
-        cost = moo.scalarize_objectives(
-            objectives.observations, self.scalarization_weights
+        cost = trieste.data.Dataset(
+            query,
+            moo.scalarize_objectives(
+                objectives.observations, self.scalarization_weights
+            ),
         )
-
-        # The agent gets to observe only the outcome cost, so the feedback is `(x, u)`.
-        feedback = trieste.data.Dataset(query, cost)
-        return feedback, {"objectives": np.array(objectives.observations)}
+        return {"cost": cost, "objectives": objectives}, {}
 
     def observe(self, query, feedback, evaluation) -> None:
         del query, feedback, evaluation
@@ -202,7 +218,7 @@ class Evaluation(interaction_loops.Evaluation):
         del query_stats, feedback_stats, kwargs
         self.step += 1
 
-        y_observed = np.array(feedback.observations)[0, 0]
+        y_observed = np.array(feedback["cost"].observations)[0, 0]
         self.obs_min = min(self.obs_min, y_observed)
 
         o_true = self.problem.objective(query)

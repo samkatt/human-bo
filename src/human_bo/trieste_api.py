@@ -253,4 +253,58 @@ class TriesteBO(interaction_loops.Agent):
 
     def observe(self, query, feedback, evaluation) -> None:
         del query, evaluation
-        self.data = self.data + feedback
+        self.data = self.data + feedback["cost"]
+
+
+class CompositeBO(interaction_loops.Agent):
+    """Multi-objective optimization agent that *knows* the scalarization weights."""
+
+    def __init__(
+        self,
+        composition_weights: list[float],
+        data: trieste.data.Dataset,
+        search_space: trieste.space.SearchSpace,
+        acqf: str,
+        acqf_options: dict[str, Any],
+    ):
+        """Initiates an agent that performs BO on scalarized MOO problem.
+
+        This agents knows the scalarization weights `composition_weights`,
+        but builds surrogate models for the objectives.
+
+        The optimization uses the surrogate models, in combination with scalar weights,
+        to maximize the `acqf`.
+        """
+        self.weights = composition_weights
+        self.data = data
+        self.search_space = search_space
+        self.step = -1
+        self.acqf = create_trieste_acqf(acqf, self.search_space, acqf_options)
+        self.mean_acqf = create_trieste_acqf("mean", self.search_space, {})
+
+    def pick_query(self) -> tuple[Any, dict[str, Any]]:
+        self.step += 1
+
+        # Create the model (or return random sample if fails).
+        try:
+            model = posteriors.CompositeGP(self.data, self.search_space, self.weights)
+
+        except tf.errors.InvalidArgumentError:
+            print(
+                "WARN: `TriesteBO.pick_query` failed to fit model, returning random sample."
+            )
+            return self.search_space.sample(1), {}
+
+        # Pick query given model.
+        query = optimize_trieste_acqf(self.acqf, self.data, model, self.search_space)
+
+        arg_map = optimize_trieste_acqf(
+            self.mean_acqf, self.data, model, self.search_space
+        )
+        map_mean = model.predict(arg_map)[0]
+
+        return query, {"map": {"x": np.array(arg_map), "y": np.array(map_mean)}}
+
+    def observe(self, query, feedback, evaluation) -> None:
+        del query, evaluation
+        self.data = self.data + feedback["objectives"]

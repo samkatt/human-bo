@@ -30,6 +30,16 @@ CONFIG: dict[str, dict[str, Any]] = {
         "tags": {"experiment-hyper-parameter", "problem-parameters"},
         "parser-arguments": {"default": 2},
     },
+    "type_agent": {
+        "type": str,
+        "shorthand": "t",
+        "help": "The type of agent to use.",
+        "tags": {"experiment-parameter"},
+        "parser-arguments": {
+            "choices": {"random", "bo", "composite"},
+            "required": True,
+        },
+    },
 }
 
 

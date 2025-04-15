@@ -558,7 +558,7 @@ def visualize_moo(results):
             objectives[-1, ..., 0], objectives[-1, ..., 1], "ro", label="Next"
         )
 
-        (scatter_map_o,) = ax_o.plot(np.nan, np.nan, "bo", label="MAP")
+        (scatter_map_o,) = ax_o.plot(np.nan, np.nan, color="brown", label="MAP")
 
         ax_o.set_xlabel("o1")
         ax_o.set_ylabel("o2")
@@ -583,7 +583,7 @@ def visualize_moo(results):
         contourf_x = ax_x.contourf(*x_linspaces, U_x, cmap="cividis")
         plt.colorbar(contourf_x, ax=ax_x)
 
-        (scatter_map_x,) = ax_x.plot(np.nan, np.nan, "bo", label="MAP")
+        (scatter_map_x,) = ax_x.plot(np.nan, np.nan, color="brown", label="MAP")
         (scattered_x,) = ax_x.plot(queries[..., 0], queries[..., 1], "ko")
 
         (scattered_next_x,) = ax_x.plot(

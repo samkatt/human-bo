@@ -525,8 +525,11 @@ def visualize_moo(results):
     ax_u = fig.add_subplot(221)
     ax_o = fig.add_subplot(222) if num_objs == 2 else None
     ax_x = fig.add_subplot(223) if dim == 2 else None
+    ax_x_lines = fig.add_subplot(224)
 
     # Utility plot.
+    for o in range(num_objs):
+        ax_u.plot(objectives[..., o], label=f"obj {o}", alpha=0.75)
     ax_u.plot(utilities.reshape(-1), label="Utility", color="black")
     ax_u.plot(map_u.reshape(-1), label="MAP", color="brown")
     (lines_u_next,) = ax_u.plot(utilities[-1], n, "ro", label="Next")
@@ -535,6 +538,13 @@ def visualize_moo(results):
     ax_u.set_ylabel("u")
     ax_u.set_title("Utility")
     ax_u.legend()
+
+    # X lines plots
+    for d in range(dim):
+        ax_x_lines.plot(queries[..., d], label=f"X_{d}", alpha=0.75)
+    (lines_x_next,) = ax_x_lines.plot(0, n, "ro", label="Next")
+    ax_x_lines.set_xlim(0, n)
+    ax_x_lines.legend()
 
     # Objectives plot.
     if ax_o:
@@ -616,6 +626,7 @@ def visualize_moo(results):
         # Set "next" data.
         if b < n:
             lines_u_next.set_data([b], [next_u.item()])
+            lines_x_next.set_data([b], [0])
             if scatter_next_o:
                 scatter_next_o.set_data([next_o[..., 0]], [next_o[..., 1]])
             if scatter_map_o:

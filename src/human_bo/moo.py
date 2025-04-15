@@ -20,14 +20,14 @@ CONFIG: dict[str, dict[str, Any]] = {
         "type": int,
         "shorthand": "d",
         "help": "Number of dimensions of `x` (query).",
-        "tags": {"experiment-hyper-parameter", "problem-parameters"},
+        "tags": {"experiment-parameter", "problem-parameters"},
         "parser-arguments": {"default": 2},
     },
     "o_dim": {
         "type": int,
         "shorthand": "o",
         "help": "Number of objectives.",
-        "tags": {"experiment-hyper-parameter", "problem-parameters"},
+        "tags": {"experiment-parameter", "problem-parameters"},
         "parser-arguments": {"default": 2},
     },
     "type_agent": {

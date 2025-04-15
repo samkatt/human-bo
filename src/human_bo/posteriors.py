@@ -41,6 +41,7 @@ class CompositeGP(trieste.models.interfaces.ProbabilisticModel):
 
         - `num_approx_samples` are the number of samples used approximate `predict`.
         """
+        # TODO: Reconsider whether we should be normalizing HERE.
 
         self.num_approx_samples = num_approx_samples
         self.scalarization_weights = tf.convert_to_tensor(
@@ -93,11 +94,38 @@ class CompositeGP(trieste.models.interfaces.ProbabilisticModel):
     def predict(
         self, query_points: trieste.types.TensorType
     ) -> tuple[trieste.types.TensorType, trieste.types.TensorType]:
-        samples = self.sample(query_points, self.num_approx_samples)
-        sample_mean = tf.reduce_mean(samples, axis=0)
-        sample_var = tf.math.reduce_variance(samples, axis=0)
 
-        return sample_mean, sample_var
+        o_means_sca, o_vars_sca = zip(*[m.predict(query_points) for m in self.models])
+
+        # Here we de-normalize our objectives.
+        # The actual predicted mean is `o * std + mean`.
+        # Its variance is simply the multiplication with the previous: `v * sqrt(std)`.
+        o_means = [
+            o * std + m for o, std, m in zip(o_means_sca, self.o_stds, self.o_means)
+        ]
+        o_vars = [v * tf.pow(std, 2) for v, std in zip(o_vars_sca, self.o_stds)]
+
+        # Here we transform our predicted means and variance.
+        # In particular, we want to predict the cost's mean and variance:
+
+        # Given X_i ~ N(m_i, v_i), we have:
+        # c * X_i ~ N(c * m_i, c ** 2 * v_i)
+        # X_i + X_j ~ N(m_i + m_j, v_i + v_j)
+
+        # Which together makes:
+        # c_i * X_i + c_j * X_j ~ N(c_i * m_i + c_j * m_j, c_i ** 2 * v_i + c_j ** 2 * v_j)
+
+        # As in: the mean is sum(w_i * m_i) and the variance is sum(w_i ** 2 * s_i)
+        # We implement this with tensor operations.
+        mean = tf.matmul(
+            tf.concat(o_means, axis=-1), tf.reshape(self.scalarization_weights, (-1, 1))
+        )
+        var = tf.matmul(
+            tf.concat(o_vars, axis=-1),
+            tf.reshape(tf.pow(self.scalarization_weights, 2), (-1, 1)),
+        )
+
+        return mean, var
 
     def log(self, dataset: trieste.data.Dataset | None = None) -> None:
         del dataset

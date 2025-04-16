@@ -141,12 +141,10 @@ class CompositeGP(trieste.models.interfaces.SupportsGetObservationNoise):
         :return: The observation noise.
         """
         # Here we combine the observation noise of our individual GPs.
-        # XXX: Not sure if this is mathematically correct!
-
         # We first grab (unscaled) noise of each objective.
         o_noise = [
-            m.get_observation_noise() * tf.pow(v, 2)
-            for m, v in zip(self.models, self.o_stds)
+            m.get_observation_noise() * tf.pow(s, 2)
+            for m, s in zip(self.models, self.o_stds)
         ]
 
         # And then we take the linear combination.

@@ -122,9 +122,9 @@ def main():
     res["conf"] = exp_params
     res["conf"]["experiment_type"] = "trieste"
 
-    map_y = np.stack(
-        [i["map"]["y"][0] if "map" in i else [np.nan] for i in res["query_stats"]]
-    )
+    map_y = np.array(
+        [i["map"] if "map" in i else np.nan for i in res["evaluation_stats"]]
+    ).reshape(-1, 1)
     map_x = np.stack(
         [
             (i["map"]["x"][0] if "map" in i else np.full(trieste_problem.dim, np.nan))
@@ -132,12 +132,8 @@ def main():
         ]
     )
     map_o = [
-        (
-            i["map"]["o"][0]
-            if "map" in i and "o" in i["map"]
-            else np.full(exp_params["o_dim"], np.nan)
-        )
-        for i in res["query_stats"]
+        (i["o_map"][0] if "o_map" in i else np.full(exp_params["o_dim"], np.nan))
+        for i in res["evaluation_stats"]
     ]
 
     res["results"] = {
@@ -215,7 +211,7 @@ class Evaluation(interaction_loops.Evaluation):
         feedback_stats: dict[str, Any],
         **kwargs,
     ) -> tuple[Any, dict[str, Any]]:
-        del query_stats, feedback_stats, kwargs
+        del feedback_stats, kwargs
         self.step += 1
 
         y_observed = np.array(feedback["cost"].observations)[0, 0]
@@ -234,6 +230,24 @@ class Evaluation(interaction_loops.Evaluation):
             "o_true": np.array(o_true)[0],
             "y_min": self.y_min,
         }
+
+        if "observation_noise" in query_stats:
+            evaluation["model_observation_noise"] = query_stats["observation_noise"]
+
+        if "map" in query_stats:
+            o_map = self.problem.objective(query_stats["map"]["x"])
+            y_arg_map = np.array(
+                tf.matmul(
+                    o_map,
+                    tf.reshape(self.scalarization_weights, (-1, 1)),
+                )
+            )
+            map_prediction_error = np.abs(y_arg_map - query_stats["map"]["y"])
+
+            evaluation["map"] = float(y_arg_map[0, 0])
+            evaluation["o_map"] = np.array(o_map)
+            evaluation["map_prediction_error"] = float(map_prediction_error[0, 0])
+
         self.report_step(evaluation, self.step)
 
         return None, evaluation

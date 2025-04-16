@@ -25,30 +25,28 @@ def create_trieste_gp(
     return gp
 
 
-class CompositeGP(trieste.models.interfaces.ProbabilisticModel):
+class CompositeGP(trieste.models.interfaces.SupportsGetObservationNoise):
+    """Note `SupportsGetObservationNoise` is a `ProbabilisticModel`."""
+
     def __init__(
         self,
         data: trieste.data.Dataset,
         search_space: trieste.space.SearchSpace,
         scalarization_weights: list[float],
-        num_approx_samples: int = 100,
     ):
         """Composite GP over multiple objectives given the `scalarization_weights`.
 
         Initiates individual GPs, one for each objective, and implements Trieste's
         API for probabilistic models. In particular, `sample` is done by sampling
         from the individual GPs and then computing the cost given the `scalarization_weights`.
-
-        - `num_approx_samples` are the number of samples used approximate `predict`.
         """
         # TODO: Reconsider whether we should be normalizing HERE.
 
-        self.num_approx_samples = num_approx_samples
         self.scalarization_weights = tf.convert_to_tensor(
             scalarization_weights, tf.float64
         )
 
-        self.models: list[trieste.models.interfaces.ProbabilisticModel] = []
+        self.models: list[trieste.models.interfaces.SupportsGetObservationNoise] = []
 
         # Our models are trained on standardized objectives.
         # However, when we `predict` and `sample` we return re-scaled output.
@@ -71,6 +69,8 @@ class CompositeGP(trieste.models.interfaces.ProbabilisticModel):
     def sample(
         self, query_points: trieste.types.TensorType, num_samples: int
     ) -> trieste.types.TensorType:
+        """Abstract method of `ProbabilisticModel`."""
+
         num_queries = query_points.shape[0]
 
         # Here we sample objectives from our models.
@@ -94,6 +94,7 @@ class CompositeGP(trieste.models.interfaces.ProbabilisticModel):
     def predict(
         self, query_points: trieste.types.TensorType
     ) -> tuple[trieste.types.TensorType, trieste.types.TensorType]:
+        """Abstract method of `ProbabilisticModel`."""
 
         o_means_sca, o_vars_sca = zip(*[m.predict(query_points) for m in self.models])
 
@@ -108,12 +109,12 @@ class CompositeGP(trieste.models.interfaces.ProbabilisticModel):
         # Here we transform our predicted means and variance.
         # In particular, we want to predict the cost's mean and variance:
 
-        # Given X_i ~ N(m_i, v_i), we have:
-        # c * X_i ~ N(c * m_i, c ** 2 * v_i)
-        # X_i + X_j ~ N(m_i + m_j, v_i + v_j)
+        # Given `X_i ~ N(m_i, v_i)`, we have:
+        # `c * X_i   ~ N(c * m_i, c ** 2 * v_i)`
+        # `X_i + X_j ~ N(m_i + m_j, v_i + v_j)`
 
         # Which together makes:
-        # c_i * X_i + c_j * X_j ~ N(c_i * m_i + c_j * m_j, c_i ** 2 * v_i + c_j ** 2 * v_j)
+        # `c_i * X_i + c_j * X_j ~ N(c_i * m_i + c_j * m_j, c_i ** 2 * v_i + c_j ** 2 * v_j)`
 
         # As in: the mean is sum(w_i * m_i) and the variance is sum(w_i ** 2 * s_i)
         # We implement this with tensor operations.
@@ -128,5 +129,30 @@ class CompositeGP(trieste.models.interfaces.ProbabilisticModel):
         return mean, var
 
     def log(self, dataset: trieste.data.Dataset | None = None) -> None:
+        """Abstract method of `ProbabilisticModel`, unused in this code base."""
         del dataset
         pass
+
+    def get_observation_noise(self) -> trieste.types.TensorType:
+        """Abstract method of `SupportsGetObservationNoise`.
+
+        Return the variance of observation noise.
+
+        :return: The observation noise.
+        """
+        # Here we combine the observation noise of our individual GPs.
+        # XXX: Not sure if this is mathematically correct!
+
+        # We first grab (unscaled) noise of each objective.
+        o_noise = [
+            m.get_observation_noise() * tf.pow(v, 2)
+            for m, v in zip(self.models, self.o_stds)
+        ]
+
+        # And then we take the linear combination.
+        combined_noise = tf.matmul(
+            tf.concat(o_noise, axis=-1),
+            tf.reshape(tf.pow(self.scalarization_weights, 2), (-1, 1)),
+        )
+
+        return combined_noise

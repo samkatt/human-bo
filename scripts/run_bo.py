@@ -91,7 +91,7 @@ def main():
     res["conf"]["experiment_type"] = "trieste"
 
     map_y = np.stack(
-        [i["map"]["y"][0] if "map" in i else [np.nan] for i in res["query_stats"]]
+        [i["map"] if "map" in i else [np.nan] for i in res["evaluation_stats"]]
     )
     map_x = np.stack(
         [

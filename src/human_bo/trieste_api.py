@@ -249,7 +249,12 @@ class TriesteBO(interaction_loops.Agent):
         # Un-normalize predicted MAP.
         map_mean = model.predict(arg_map)[0] * y_std + y_mean
 
-        return query, {"map": {"x": np.array(arg_map), "y": np.array(map_mean)}}
+        observation_noise = np.array(model.get_observation_noise()) * tf.pow(y_std, 2)
+
+        return query, {
+            "map": {"x": np.array(arg_map), "y": np.array(map_mean)},
+            "observation_noise": observation_noise,
+        }
 
     def observe(self, query, feedback, evaluation) -> None:
         del query, evaluation
@@ -303,7 +308,12 @@ class CompositeBO(interaction_loops.Agent):
         )
         map_mean = model.predict(arg_map)[0]
 
-        return query, {"map": {"x": np.array(arg_map), "y": np.array(map_mean)}}
+        observation_noise = np.array(model.get_observation_noise())
+
+        return query, {
+            "map": {"x": np.array(arg_map), "y": np.array(map_mean)},
+            "observation_noise": observation_noise,
+        }
 
     def observe(self, query, feedback, evaluation) -> None:
         del query, evaluation

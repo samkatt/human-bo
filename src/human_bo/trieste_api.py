@@ -42,7 +42,7 @@ def optimize_trieste_acqf(
     dataset: trieste.data.Dataset,
     trieste_model: trieste.models.interfaces.ProbabilisticModel,
     search_space: trieste.space.SearchSpace,
-):
+) -> trieste.types.TensorType:
     """A very short helper function to get from an acquisition function builder to query.
 
     In practice, it really just creates an acquisition Trieste "rule" based on EGO and
@@ -228,33 +228,52 @@ class TriesteBO(interaction_loops.Agent):
     def pick_query(self) -> tuple[Any, dict[str, Any]]:
         self.step += 1
 
+        query_stats: dict[str, Any] = {"optimization_fails": 0}
+
         # Create the model (or return random sample if fails).
         try:
             y_sca, y_mean, y_std = utils.normalize(self.data.observations)
             data_sca = trieste.data.Dataset(self.data.query_points, y_sca)
             model = posteriors.create_trieste_gp(data_sca, self.search_space)
 
-        except tf.errors.InvalidArgumentError:
+        except tf.errors.InvalidArgumentError as e:
             print(
-                "WARN: `TriesteBO.pick_query` failed to fit model, returning random sample."
+                "WARN: `TriesteBO.pick_query` failed to fit model, returning random sample.",
+                e,
             )
-            return self.search_space.sample(1), {}
+            query_stats["optimization_fails"] += 1
+            return self.search_space.sample(1), query_stats
 
-        # Pick query given model.
-        query = optimize_trieste_acqf(self.acqf, data_sca, model, self.search_space)
+        # Pick query given model (or return random if fails).
+        try:
+            query = optimize_trieste_acqf(self.acqf, data_sca, model, self.search_space)
+        except trieste.acquisition.optimizer.FailedOptimizationError as e:
+            print(
+                "WARN: `TriesteBO.pick_query` failed to optimize, returning random sample.",
+                e,
+            )
+            query_stats["optimization_fails"] += 1
+            query = self.search_space.sample(1)
 
-        arg_map = optimize_trieste_acqf(
-            self.mean_acqf, data_sca, model, self.search_space
-        )
-        # Un-normalize predicted MAP.
-        map_mean = model.predict(arg_map)[0] * y_std + y_mean
+        # Get MAP (for reporting statistics).
+        try:
+            arg_map = optimize_trieste_acqf(
+                self.mean_acqf, data_sca, model, self.search_space
+            )
+            # Un-normalize predicted MAP.
+            map_mean = model.predict(arg_map)[0] * y_std + y_mean
 
-        observation_noise = np.array(model.get_observation_noise()) * tf.pow(y_std, 2)
+            query_stats["map"] = {"x": np.array(arg_map), "y": np.array(map_mean)}
 
-        return query, {
-            "map": {"x": np.array(arg_map), "y": np.array(map_mean)},
-            "observation_noise": observation_noise,
-        }
+        except trieste.acquisition.optimizer.FailedOptimizationError as e:
+            print("WARN: `CompositeBO.pick_query` failed to find MAP.", e)
+            query_stats["optimization_fails"] += 1
+
+        query_stats["observation_noise"] = np.array(
+            model.get_observation_noise()
+        ) * tf.pow(y_std, 2)
+
+        return query, query_stats
 
     def observe(self, query, feedback, evaluation) -> None:
         del query, evaluation
@@ -289,31 +308,47 @@ class CompositeBO(interaction_loops.Agent):
 
     def pick_query(self) -> tuple[Any, dict[str, Any]]:
         self.step += 1
+        query_stats: dict[str, Any] = {"optimization_fails": 0}
 
         # Create the model (or return random sample if fails).
         try:
             model = posteriors.CompositeGP(self.data, self.search_space, self.weights)
 
-        except tf.errors.InvalidArgumentError:
+        except tf.errors.InvalidArgumentError as e:
             print(
-                "WARN: `TriesteBO.pick_query` failed to fit model, returning random sample."
+                "WARN: `CompositeBO.pick_query` failed to fit model, returning random sample.",
+                e,
             )
-            return self.search_space.sample(1), {}
+            query_stats["optimization_fails"] += 1
+            return self.search_space.sample(1), query_stats
 
         # Pick query given model.
-        query = optimize_trieste_acqf(self.acqf, self.data, model, self.search_space)
+        try:
+            query = optimize_trieste_acqf(
+                self.acqf, self.data, model, self.search_space
+            )
+        except trieste.acquisition.optimizer.FailedOptimizationError as e:
+            print(
+                "WARN: `CompositeBO.pick_query` failed to optimize, returning random sample.",
+                e,
+            )
+            query_stats["optimization_fails"] += 1
+            query = self.search_space.sample(1)
 
-        arg_map = optimize_trieste_acqf(
-            self.mean_acqf, self.data, model, self.search_space
-        )
-        map_mean = model.predict(arg_map)[0]
+        try:
+            arg_map = optimize_trieste_acqf(
+                self.mean_acqf, self.data, model, self.search_space
+            )
+            map_mean = model.predict(arg_map)[0]
 
-        observation_noise = np.array(model.get_observation_noise())
+            query_stats["map"] = {"x": np.array(arg_map), "y": np.array(map_mean)}
+        except trieste.acquisition.optimizer.FailedOptimizationError as e:
+            print("WARN: `CompositeBO.pick_query` failed to find MAP.", e)
+            query_stats["optimization_fails"] += 1
 
-        return query, {
-            "map": {"x": np.array(arg_map), "y": np.array(map_mean)},
-            "observation_noise": observation_noise,
-        }
+        query_stats["observation_noise"] = np.array(model.get_observation_noise())
+
+        return query, query_stats
 
     def observe(self, query, feedback, evaluation) -> None:
         del query, evaluation

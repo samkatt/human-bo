@@ -459,7 +459,7 @@ def visualize_moo(results):
     dim = exp_params["x_dim"]
     num_objs = exp_params["o_dim"]
 
-    grid_n = 100
+    grid_n = 25
 
     assert isinstance(
         problem, trieste.objectives.multi_objectives.MultiObjectiveTestProblem
@@ -673,26 +673,9 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Command description.")
     parser.add_argument(
-        "-t",
-        "--type",
-        default="regrets",
+        "file",
         type=str,
-        help="Type of visualization.",
-        choices=["y_max", "trajectory"],
-    )
-    parser.add_argument(
-        "-f",
-        "--files",
-        nargs="*",
-        type=str,
-        help="All files that need to be processed.",
-    )
-    parser.add_argument(
-        "--budget",
-        type=int,
-        help="For which budget to plot",
-        default=True,
-        action=argparse.BooleanOptionalAction,
+        help="File that need to be processed.",
     )
 
     args = parser.parse_args()
@@ -700,27 +683,22 @@ if __name__ == "__main__":
     # Basic setup for all visualizations.
     visualization.set_matplotlib_params()
 
-    # TODO: maybe remove this option, since it is the only one we have.
-    if args.type == "trajectory":
-        if len(args.files) != 1:
-            raise ValueError("Please only provide 1 file when plotting trajectory")
+    with open(args.file, "rb") as f:
+        file_content = pickle.load(f)
 
-        with open(args.files[0], "rb") as f:
-            file_content = pickle.load(f)
+    if "o_dim" in file_content["conf"]:
+        visualize_moo(file_content)
+    else:
 
-        if "o_dim" in file_content["conf"]:
-            visualize_moo(file_content)
+        x_dim = conf.CONFIG["problem"]["parser-arguments"]["choices"][
+            file_content["conf"]["problem"]
+        ]["dims"]
+
+        if x_dim == 1:
+            visualize_trajectory_1D(file_content)
+        elif x_dim == 2:
+            visualize_trajectory_2D(file_content)
         else:
-
-            x_dim = conf.CONFIG["problem"]["parser-arguments"]["choices"][
-                file_content["conf"]["problem"]
-            ]["dims"]
-
-            if x_dim == 1:
-                visualize_trajectory_1D(file_content)
-            elif x_dim == 2:
-                visualize_trajectory_2D(file_content)
-            else:
-                raise ValueError(
-                    f"Experiment on {file_content['conf']['problem']} is too high-dimensional ({x_dim}) to visualize"
-                )
+            raise ValueError(
+                f"Experiment on {file_content['conf']['problem']} is too high-dimensional ({x_dim}) to visualize"
+            )

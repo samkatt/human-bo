@@ -95,3 +95,4 @@ But I tend to just run `scripts/static_analysis.sh` and check the output.
 - [ ] Rename and move components to get clear API between Trieste and my code.
 - [ ] Update README.
 - [ ] Update visualization to explicitly do Trieste.
+- [ ] Scale figures when plotting (especially in moo).

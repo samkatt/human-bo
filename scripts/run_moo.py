@@ -1,21 +1,23 @@
 #!/usr/bin/env python
 
-"""Entry-point for subjective multi-objective optimization."""
+"""Main entry point: runs MOO."""
 
 import argparse
+import pickle
+import random
+from typing import Any
 
-import torch
+import numpy as np
+import tensorflow as tf
+import trieste
 
-from human_bo import conf, interaction_loops, reporting, test_functions, utils
-from human_bo.moo import agents, moo_core
+from human_bo import conf, interaction_loops, moo, reporting, trieste_api, utils
 
 
 def main():
-    """Main entry MOO experiments."""
-    torch.set_default_dtype(torch.double)
-
+    """Main entry human-feedback experiments."""
     exp_conf = conf.CONFIG
-    exp_conf.update(moo_core.CONFIG)
+    exp_conf.update(moo.CONFIG)
 
     parser = argparse.ArgumentParser(description="Command description.")
     for arg, values in exp_conf.items():
@@ -37,21 +39,35 @@ def main():
         conf.get_values_with_tag(exp_params, "experiment-parameter", exp_conf)
         + [str(exp_params["seed"])]
     )
-
-    path = exp_params["save_dir"] + "/" + experiment_name + ".pt"
+    path = exp_params["save_dir"] + "/" + experiment_name + ".pkl"
 
     utils.exit_if_exists(path)
     utils.create_directory_if_does_not_exist(exp_params["save_dir"])
 
-    assert exp_params["n_init"] == 0, "There is no support for initial points in MOO"
+    tf.random.set_seed(exp_params["seed"])
+    np.random.seed(exp_params["seed"])
+    random.seed(exp_params["seed"])
 
-    torch.manual_seed(exp_params["seed"])
+    # Create problem and evaluation.
+    if exp_params["scalarization_weights"] is None:
+        exp_params["scalarization_weights"] = moo.sample_scalarization_weights(
+            exp_params["o_dim"]
+        )
 
-    moo_function = test_functions.pick_moo_test_function(
-        exp_params["problem"], exp_params["problem_noise"]
+    scalarization_weights = tf.convert_to_tensor(
+        exp_params["scalarization_weights"], tf.float64
     )
-    utility_function = moo_core.create_utility_function(
-        exp_params["preference_weights"]
+    assert 0.99 < sum(scalarization_weights) < 1.01, "Preference weights must sum to 1"
+    assert len(scalarization_weights) == exp_params["o_dim"], "Enter `| -o| ` scalars"
+
+    trieste_problem = trieste_api.create_trieste_test_function(
+        exp_params["problem"], exp_params["x_dim"], exp_params["o_dim"]
+    )
+    assert isinstance(
+        trieste_problem, trieste.objectives.multi_objectives.MultiObjectiveTestProblem
+    )
+    problem = Problem(
+        trieste_problem, scalarization_weights, exp_params["problem_noise"]
     )
 
     report_step = (
@@ -61,26 +77,180 @@ def main():
         if exp_params["wandb"]
         else reporting.print_dot
     )
+    evaluation = Evaluation(trieste_problem, scalarization_weights, report_step)
 
-    evaluation = moo_core.MOOEvaluation(moo_function, utility_function, report_step)
-    agent = agents.create_AI(
-        moo_function,
-        utility_function,
-        exp_params["algorithm"],
-        exp_params["kernel"],
-        exp_params["acqf"],
-        acqf_options=conf.get_entries_with_tag(exp_params, "acqf-option"),
+    # Create Agents
+    x_init = trieste_problem.search_space.sample(exp_params["n_init"])
+    o_init = problem.observer(x_init)
+    assert isinstance(o_init, trieste.data.Dataset) and isinstance(
+        o_init.observations, tf.Tensor
     )
-    problem = moo_core.MOOProblem(moo_function, utility_function)
+    y_init = moo.scalarize_objectives(o_init.observations, scalarization_weights)
+
+    if exp_params["type_agent"] == "bo":
+        data_init = trieste.data.Dataset(
+            x_init,
+            y_init,
+        )
+        ai: interaction_loops.Agent = trieste_api.TriesteBO(
+            data_init,
+            trieste_problem.search_space,
+            exp_params["acqf"],
+            acqf_options=conf.get_entries_with_tag(exp_params, "acqf-option"),
+        )
+
+    elif exp_params["type_agent"] == "composite":
+        data_init = o_init
+        ai = trieste_api.CompositeBO(
+            exp_params["scalarization_weights"],
+            data_init,
+            trieste_problem.search_space,
+            exp_params["acqf"],
+            acqf_options=conf.get_entries_with_tag(exp_params, "acqf-option"),
+        )
+
+    elif exp_params["type_agent"] == "random":
+        ai = trieste_api.RandomAgent(trieste_problem.search_space)
+
+    else:
+        raise ValueError(f"{exp_params['type_agent']} is not supported")
 
     print(f"Running experiment for {path}")
-    res = interaction_loops.basic_loop(agent, problem, evaluation, exp_params["budget"])
+    res = interaction_loops.basic_loop(ai, problem, evaluation, exp_params["budget"])
 
+    # Post-process data for easy visualization later.
     res["conf"] = exp_params
-    res["conf"]["experiment_type"] = "moo"
+    res["conf"]["experiment_type"] = "trieste"
 
-    torch.save(res, path)
+    map_y = np.array(
+        [i["map"] if "map" in i else np.nan for i in res["evaluation_stats"]]
+    ).reshape(-1, 1)
+    map_x = np.stack(
+        [
+            (i["map"]["x"][0] if "map" in i else np.full(trieste_problem.dim, np.nan))
+            for i in res["query_stats"]
+        ]
+    )
+    map_o = [
+        (i["o_map"][0] if "o_map" in i else np.full(exp_params["o_dim"], np.nan))
+        for i in res["evaluation_stats"]
+    ]
+
+    res["results"] = {
+        "data_init": {
+            "x": np.array(x_init),
+            "o": np.array(o_init.observations),
+            "y": np.array(y_init),
+        },
+        "queries": np.stack(res["query"]),
+        "observations": np.stack([f["cost"].observations for f in res["feedback"]]),
+        "objectives": np.stack([r["objectives"].observations for r in res["feedback"]]),
+        "y_min": np.stack([d["y_min"] for d in res["evaluation_stats"]]),
+        "map": {"arg_max": map_x, "max": map_y, "obj": map_o},
+    }
+
+    with open(path, "wb") as f:
+        pickle.dump(res, f)
+
     print(f"Done experiments, saved results in {path}")
+
+
+class Problem(interaction_loops.Problem):
+    """The 'problem' in MOO, represented by test and scalar functions."""
+
+    def __init__(
+        self,
+        trieste_problem: trieste.objectives.multi_objectives.MultiObjectiveTestProblem,
+        scalarization_weights: tf.Tensor,
+        problem_noise: list[float] | None,
+    ):
+        self.observer = trieste_api.create_trieste_observer(
+            trieste_problem.objective, noise_stdev=problem_noise
+        )
+        self.scalarization_weights = scalarization_weights
+
+    def give_feedback(self, query) -> tuple[Any, dict[str, Any]]:
+        objectives = self.observer(query)
+
+        assert isinstance(objectives, trieste.data.Dataset)
+        assert isinstance(objectives.observations, tf.Tensor)
+
+        cost = trieste.data.Dataset(
+            query,
+            moo.scalarize_objectives(
+                objectives.observations, self.scalarization_weights
+            ),
+        )
+        return {"cost": cost, "objectives": objectives}, {}
+
+    def observe(self, query, feedback, evaluation) -> None:
+        del query, feedback, evaluation
+
+
+class Evaluation(interaction_loops.Evaluation):
+    """Evaluation of MOO problem, mostly about recording true values without noise."""
+
+    def __init__(
+        self,
+        problem: trieste.objectives.multi_objectives.MultiObjectiveTestProblem,
+        scalarization_weights: tf.Tensor,
+        report_step: reporting.StepReport,
+    ):
+        self.problem = problem
+        self.scalarization_weights = scalarization_weights
+
+        self.obs_min, self.y_min = np.inf, np.inf
+        self.step = -1
+        self.report_step = report_step
+
+    def __call__(
+        self,
+        query,
+        feedback,
+        query_stats: dict[str, Any],
+        feedback_stats: dict[str, Any],
+        **kwargs,
+    ) -> tuple[Any, dict[str, Any]]:
+        del feedback_stats, kwargs
+        self.step += 1
+
+        y_observed = np.array(feedback["cost"].observations)[0, 0]
+        self.obs_min = min(self.obs_min, y_observed)
+
+        o_true = self.problem.objective(query)
+        assert isinstance(o_true, tf.Tensor)
+
+        y_true = np.array(moo.scalarize_objectives(o_true, self.scalarization_weights))[
+            0, 0
+        ]
+        self.y_min = min(self.y_min, y_true)
+
+        evaluation = {
+            "obs_min": self.obs_min,
+            "o_true": np.array(o_true)[0],
+            "y_min": self.y_min,
+        }
+
+        if "observation_noise" in query_stats:
+            evaluation["model_observation_noise"] = query_stats["observation_noise"]
+
+        if "map" in query_stats:
+            o_map = self.problem.objective(query_stats["map"]["x"])
+            y_arg_map = np.array(
+                tf.matmul(
+                    o_map,
+                    tf.reshape(self.scalarization_weights, (-1, 1)),
+                )
+            )
+            map_prediction_error = np.abs(y_arg_map - query_stats["map"]["y"])
+
+            evaluation["map"] = float(y_arg_map[0, 0])
+            evaluation["o_map"] = np.array(o_map)
+            evaluation["map_prediction_error"] = float(map_prediction_error[0, 0])
+
+        self.report_step(evaluation, self.step)
+
+        return None, evaluation
 
 
 if __name__ == "__main__":

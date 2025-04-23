@@ -67,6 +67,8 @@ def pick_kernel(ker: str, dim: int) -> kernels.ScaleKernel | None:
     if ker == "Default":
         return None
 
+    raise ValueError(f"{ker} is not a supported kernel.")
+
 
 def random_queries(
     bounds: list[tuple[float, float]] | torch.Tensor, n: int = 1
@@ -172,7 +174,7 @@ class PlainBO:
                 self.acqf, x, gp, self.bounds, **self.acqf_options
             ),
             bounds=self.bounds,
-            q=1,  # batch size, i.e. we only query one point
+            q=2,
             num_restarts=10,
             raw_samples=512,
         )

@@ -1,6 +1,5 @@
 """Contains data and functions for handling experiment configurations"""
 
-import math
 from typing import Any
 
 CONFIG: dict[str, dict[str, Any]] = {
@@ -25,29 +24,21 @@ CONFIG: dict[str, dict[str, Any]] = {
         "tags": {"experiment-hyper-parameter"},
         "parser-arguments": {"default": 0},
     },
-    "kernel": {
-        "type": str,
-        "shorthand": "k",
-        "help": "Kernel of the GP.",
-        "tags": {"experiment-parameter"},
-        "parser-arguments": {
-            "default": "Default",
-            "choices": {"RBF", "Matern", "Default"},
-        },
-    },
     "acqf": {
         "type": str,
         "shorthand": "a",
         "help": "Acquisition function used.",
         "tags": {"experiment-parameter"},
-        "parser-arguments": {"default": "EI", "choices": {"UCB", "MES", "EI"}},
+        "parser-arguments": {
+            "choices": {"UCB", "MES", "EI", "random"},
+        },
     },
     "ucb_beta": {
         "type": float,
         "shorthand": "c",
         "help": "Exploration constant used in UCB",
         "tags": {"acqf-option", "experiment-hyper-parameter"},
-        "parser-arguments": {"default": 0.2},
+        "parser-arguments": {},
     },
     "problem": {
         "type": str,
@@ -57,30 +48,14 @@ CONFIG: dict[str, dict[str, Any]] = {
         "parser-arguments": {
             "required": True,
             "choices": {
-                "Zhou": {"dims": 1, "optimal_x": [[0.34], [0.68]]},
-                "Ackley1D": {"dims": 1, "optimal_x": [[0.0]]},
-                "DixonPrice1D": {"dims": 1, "optimal_x": [[0.0]]},
-                "Griewank1D": {"dims": 1, "optimal_x": [[0.0]]},
-                "Levy1D": {"dims": 1, "optimal_x": [[1.0]]},
-                "Rastrigin1D": {"dims": 1, "optimal_x": [[0.0]]},
-                "StyblinskiTang1D": {"dims": 1, "optimal_x": [[-39.166166]]},
-                "Forrester": {"dims": 1, "optimal_x": [[1.0]]},
-                "Hartmann": {
-                    "dims": 6,
-                    "optimal_x": [
-                        [0.20169, 0.150011, 0.476874, 0.275332, 0.311652, 0.6573]
-                    ],
-                },
-                "Branin": {
-                    "dims": 2,
-                    "optimal_x": [
-                        [-math.pi, 12.275],
-                        [math.pi, 2.275],
-                        [9.42478, 2.475],
-                    ],
-                },
-                "Rosenbrock2D": {"dims": 2, "optimal_x": [[1.0, 1.0]]},
+                "Zhou": {"dims": 1},
+                "Levy1D": {"dims": 1},
+                "Forrester": {"dims": 1},
+                "Branin": {"dims": 2},
+                "Currin": {"dims": 2},
                 "BraninCurrin": {"dims": 2, "num_objectives": 2},
+                "DTLZ2": {},
+                "VLMOP2": {"num_objectives": 2},
             },
         },
     },
@@ -88,8 +63,8 @@ CONFIG: dict[str, dict[str, Any]] = {
         "type": float,
         "shorthand": "e",
         "help": "The Gaussian noise (variation) with which function `f` is observed.",
-        "tags": {"experiment-hyper-parameter"},
-        "parser-arguments": {"default": [0.1], "nargs": "+"},
+        "tags": {"experiment-hyper-parameter", "problem-parameters"},
+        "parser-arguments": {"nargs": "+"},
     },
 }
 

@@ -1,18 +1,17 @@
-"""Tests functionality of `human_bo.test_functions`"""
+"""Tests functionality of `human_bo.test_functions.`"""
 
-import pytest
-import torch
+import tensorflow as tf
 
 from human_bo import test_functions
 
 
-def test_forrester():
-    """Tests `test_functions.Forrester`"""
-    p = test_functions.Forrester()
-    assert p.optimal_value == pytest.approx(6.020738786441099)
+def test_brannin_currin():
+    """Tests `human_bo.test_functions.currin` implementation ."""
+    x = tf.convert_to_tensor([[0, 0], [0.5, 0.5], [1, 1]])
 
+    # Got these from testing Botorch's implementation.
+    y = tf.convert_to_tensor([[3.0000], [7.4051], [4.0053]])
 
-def test_create_moo_function():
-    """Tests `test_functions.pick_moo_test_function`"""
-    p = test_functions.pick_moo_test_function("BraninCurrin", [0.2, 0.45])
-    p(torch.rand([4, 2]))
+    currin = test_functions.currin(x, tf.pow, tf.exp)
+
+    assert tf.reduce_all(tf.experimental.numpy.isclose(y, currin))

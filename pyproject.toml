@@ -11,14 +11,14 @@ dependencies = [
   "gpytorch",
   "matplotlib",
   "torch",
+  "tensorflow",
+  "tensorflow_probability",
+  "trieste",
   "wandb",
 ]
 
 [tool.setuptools]
 script-files = [
-  "scripts/run_human_ai_experiment.py",
-  "scripts/run_human_then_ai_experiment.py",
-  "scripts/run_moo.py",
 ]
 
 [project.optional-dependencies]

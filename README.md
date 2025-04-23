@@ -88,3 +88,17 @@ flake8 scripts src tests
 ```
 
 But I tend to just run `scripts/static_analysis.sh` and check the output.
+
+### To do
+
+- [ ] Fix all tensorflow warnings.
+- [ ] Remove `core.py` and its tests.
+- [ ] Massive clean up:
+    - [ ] Remove pytorch.
+    - [ ] Remove "AI then human" remnants.
+    - [ ] Rename and move components to get clear API between Trieste and my code.
+    - [ ] Remove torch.
+        - [ ] Remove imports.
+        - [ ] Remove from dependencies.
+    - [ ] Update README.
+- [ ] Update visualization to explicitly do Trieste.

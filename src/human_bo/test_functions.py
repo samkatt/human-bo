@@ -1,84 +1,30 @@
-"""Test functions that are not implemented in BoTorch."""
-
-import torch
-from botorch import test_functions
-from botorch.test_functions import base
+"""Test functions not implemented in libraries directly."""
 
 
-class Zhou(test_functions.SyntheticTestFunction):
-    """The Zhou (1-dimensional) function (https://www.sfu.ca/~ssurjano/zhou98.html)"""
+def zhou(X, pi, exp):
+    def phi_zou(X):
+        return (2 * pi) ** (-0.5) * exp(-0.5 * X**2)
 
-    dim = 1
-    _bounds = [(-0.0, 1.0)]
-    _optimizers = [tuple([1 / 3]), tuple([2 / 3])]
-    _optimal_value = 2.002595246981888
-
-    def evaluate_true(self, X: torch.Tensor) -> torch.Tensor:
-        def phi_zou(X: torch.Tensor) -> torch.Tensor:
-            return (2 * torch.pi) ** (-0.5) * torch.exp(-0.5 * X**2)
-
-        part1 = 10 * (X[..., 0] - 1 / 3)
-        part2 = 10 * (X[..., 0] - 2 / 3)
-        return 5 * (phi_zou(part1) + phi_zou(part2))
+    part1 = 10 * (X[..., 0] - 1 / 3)
+    part2 = 10 * (X[..., 0] - 2 / 3)
+    return 5 * (phi_zou(part1) + phi_zou(part2))
 
 
-class Forrester(test_functions.SyntheticTestFunction):
-    """The Forrester (1-dimensional) function (https://www.sfu.ca/~ssurjano/forretal08.html)"""
-
-    dim = 1
-    _bounds = [(-0.0, 1.0)]
-    _optimizers = [tuple([0.7572])]
-    _optimal_value = 6.020738786441099
-
-    def evaluate_true(self, X: torch.Tensor) -> torch.Tensor:
-        return -((6 * X[..., 0] - 2) ** 2) * torch.sin(12 * X[..., 0] - 4)
+def forrester(X, sin):
+    return -((6 * X[..., 0] - 2) ** 2) * sin(12 * X[..., 0] - 4)
 
 
-def pick_test_function(func: str, noise: float) -> test_functions.SyntheticTestFunction:
-    """Instantiate the given function to optimize.
+def currin(X, power, exp):
+    """Currin function as described most often in BO.
 
-    :func: string description of the test function to return
-    :noise: standard deviation of the noise
+    Approximates:
+    - max: x = [.2166, 0], y = 13.79872184813862
+    - min: x = [0, 1] , y = 1.1804080208620997
     """
+    x_0 = X[..., :1]
+    x_1 = X[..., 1:]
+    factor1 = 1 - exp(-1 / (2 * x_1))
+    numer = 2300 * power(x_0, 3) + 1900 * power(x_0, 2) + 2092 * x_0 + 60
+    denom = 100 * power(x_0, 3) + 500 * power(x_0, 2) + 4 * x_0 + 20
 
-    if func == "Forrester":
-        return Forrester(noise_std=noise)
-    if func == "Zhou":
-        return Zhou(noise_std=noise)
-    if func == "Hartmann":
-        return test_functions.Hartmann(negate=True, noise_std=noise)
-    if func == "Branin":
-        return test_functions.Branin(negate=True, noise_std=noise)
-    if func == "Rosenbrock2D":
-        return test_functions.Rosenbrock(
-            dim=2, negate=True, bounds=[(-5.0, 5.0), (-5.0, 5.0)], noise_std=noise
-        )
-    if func == "Ackley1D":
-        return test_functions.Ackley(dim=1, noise_std=noise, negate=True)
-    if func == "DixonPrice1D":
-        return test_functions.DixonPrice(dim=1, noise_std=noise, negate=True)
-    if func == "Griewank1D":
-        return test_functions.Griewank(dim=1, noise_std=noise, negate=True)
-    if func == "Levy1D":
-        return test_functions.Levy(dim=1, noise_std=noise, negate=True)
-    if func == "Rastrigin1D":
-        return test_functions.Rastrigin(dim=1, noise_std=noise, negate=True)
-    if func == "StyblinskiTang1D":
-        return test_functions.StyblinskiTang(dim=1, noise_std=noise, negate=True)
-
-    raise ValueError(f"{func} is not an accepted (single objective) test function")
-
-
-def pick_moo_test_function(
-    func: str, noise: list[float] | None
-) -> base.MultiObjectiveTestProblem:
-    """Instantiate the given multi-objective function to optimize.
-
-    :func: string description of the test function to return
-    :noise: standard deviations of the noise, None means no noise.
-    """
-
-    if func == "BraninCurrin":
-        return test_functions.BraninCurrin(noise_std=noise)
-
-    raise ValueError(f"{func} is not an accepted MOO test function")
+    return factor1 * numer / denom

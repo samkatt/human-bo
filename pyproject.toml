@@ -7,10 +7,7 @@ name = "human_bo"
 version = "0.0.1"
 authors = [{name="Sammie Katt", email="sammie.katt@gmail.com"}]
 dependencies = [
-  "botorch",
-  "gpytorch",
   "matplotlib",
-  "torch",
   "tensorflow",
   "tensorflow_probability",
   "trieste",

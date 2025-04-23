@@ -131,7 +131,6 @@ class CompositeGP(trieste.models.interfaces.SupportsGetObservationNoise):
     def log(self, dataset: trieste.data.Dataset | None = None) -> None:
         """Abstract method of `ProbabilisticModel`, unused in this code base."""
         del dataset
-        pass
 
     def get_observation_noise(self) -> trieste.types.TensorType:
         """Abstract method of `SupportsGetObservationNoise`.

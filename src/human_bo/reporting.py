@@ -28,7 +28,7 @@ def initiate_and_create_wandb_logger(
     if exp_conf is None:
         exp_conf = conf.CONFIG
 
-    with open(path_to_conf_file) as f:
+    with open(path_to_conf_file, "rb") as f:
         wandb_conf = yaml.safe_load(f)
 
     dir_wandb = "./wandb/" + "_".join(

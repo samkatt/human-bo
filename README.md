@@ -91,6 +91,7 @@ But I tend to just run `scripts/static_analysis.sh` and check the output.
 
 ### To do
 
+- [ ] Currently, all Trieste BO agents *seem* very similar in their usage of models. Maybe create one agent that creates a model dynamically (add abstraction).
 - [ ] Fix all tensorflow warnings.
 - [ ] Rename and move components to get clear API between Trieste and my code.
 - [ ] Update README.

@@ -564,18 +564,16 @@ def visualize_moo(results):
             "ko",
             label="Observations",
         )
-        (scatter_next_o,) = ax_o.plot(
-            objectives[-1, ..., 0], objectives[-1, ..., 1], "ro", label="Next"
-        )
-
-        (scatter_map_o,) = ax_o.plot(np.nan, np.nan, color="brown", label="MAP")
+        (scatter_next_o,) = ax_o.plot([np.nan], [np.nan], "ro", label="Next")
+        (scatter_map_o,) = ax_o.plot([np.nan], [np.nan], "go", label="MAP")
 
         ax_o.set_xlabel("o1")
         ax_o.set_ylabel("o2")
         ax_o.set_title("Objectives")
         ax_o.legend()
     else:
-        scatter_observed_o, scatter_next_o = None, None
+        scatter_observed_o = None
+        scatter_next_o = None
         scatter_map_o = None
 
     # Query plot.
@@ -593,12 +591,10 @@ def visualize_moo(results):
         contourf_x = ax_x.contourf(*x_linspaces, U_x, cmap="cividis")
         plt.colorbar(contourf_x, ax=ax_x)
 
-        (scatter_map_x,) = ax_x.plot(np.nan, np.nan, color="brown", label="MAP")
+        (scatter_map_x,) = ax_x.plot([np.nan], [np.nan], "go", label="MAP")
         (scattered_x,) = ax_x.plot(queries[..., 0], queries[..., 1], "ko")
 
-        (scattered_next_x,) = ax_x.plot(
-            queries[-1, ..., 0], queries[-1, ..., 1], "ro", label="Next"
-        )
+        (scattered_next_x,) = ax_x.plot([np.nan], [np.nan], "ro", label="Next")
         ax_x.set_xlabel("x1")
         ax_x.set_ylabel("x2")
         ax_x.legend()

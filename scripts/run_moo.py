@@ -11,6 +11,7 @@ import numpy as np
 import tensorflow as tf
 import trieste
 
+import wandb
 from human_bo import conf, interaction_loops, moo, reporting, trieste_api, utils
 
 
@@ -81,30 +82,40 @@ def main():
 
     # Create Agents
     x_init = trieste_problem.search_space.sample(exp_params["n_init"])
-    o_init = problem.observer(x_init)
-    assert isinstance(o_init, trieste.data.Dataset) and isinstance(
-        o_init.observations, tf.Tensor
+    x_to_o_init = problem.observer(x_init)
+    assert isinstance(x_to_o_init, trieste.data.Dataset) and isinstance(
+        x_to_o_init.observations, tf.Tensor
     )
-    y_init = moo.scalarize_objectives(o_init.observations, scalarization_weights)
+    # XXX: We assume utility function has no noise.
+    y_init = moo.scalarize_objectives(x_to_o_init.observations, scalarization_weights)
 
     if exp_params["type_agent"] == "bo":
-        data_init = trieste.data.Dataset(
+        x_to_y_init = trieste.data.Dataset(
             x_init,
             y_init,
         )
         ai: interaction_loops.Agent = trieste_api.TriesteBO(
-            data_init,
+            x_to_y_init,
             trieste_problem.search_space,
             exp_params["acqf"],
             acqf_options=conf.get_entries_with_tag(exp_params, "acqf-option"),
         )
 
     elif exp_params["type_agent"] == "composite":
-        data_init = o_init
         ai = trieste_api.CompositeBO(
             exp_params["scalarization_weights"],
-            data_init,
+            x_to_o_init,
             trieste_problem.search_space,
+            exp_params["acqf"],
+            acqf_options=conf.get_entries_with_tag(exp_params, "acqf-option"),
+        )
+
+    elif exp_params["type_agent"] == "utility-learner":
+        o_to_y_init = trieste.data.Dataset(x_to_o_init.observations, y_init)
+        ai = trieste_api.UtilityBO(
+            trieste_problem,
+            x_to_o_init,
+            o_to_y_init,
             exp_params["acqf"],
             acqf_options=conf.get_entries_with_tag(exp_params, "acqf-option"),
         )
@@ -139,7 +150,7 @@ def main():
     res["results"] = {
         "data_init": {
             "x": np.array(x_init),
-            "o": np.array(o_init.observations),
+            "o": np.array(x_to_o_init.observations),
             "y": np.array(y_init),
         },
         "queries": np.stack(res["query"]),
@@ -177,6 +188,7 @@ class Problem(interaction_loops.Problem):
 
         cost = trieste.data.Dataset(
             query,
+            # XXX: We assume utility function has no noise.
             moo.scalarize_objectives(
                 objectives.observations, self.scalarization_weights
             ),
@@ -231,9 +243,6 @@ class Evaluation(interaction_loops.Evaluation):
             "y_min": self.y_min,
         }
 
-        if "observation_noise" in query_stats:
-            evaluation["model_observation_noise"] = query_stats["observation_noise"]
-
         if "map" in query_stats:
             o_map = self.problem.objective(query_stats["map"]["x"])
             y_arg_map = np.array(
@@ -248,7 +257,27 @@ class Evaluation(interaction_loops.Evaluation):
             evaluation["o_map"] = np.array(o_map)
             evaluation["map_prediction_error"] = float(map_prediction_error[0, 0])
 
-        self.report_step(evaluation, self.step)
+        report = dict(evaluation)
+        if "observation_noise" in query_stats:
+            report["query_observation_noise"] = query_stats["observation_noise"]
+        if "weight_posterior" in query_stats:
+            scalarization_weights = self.scalarization_weights.numpy()
+            post_centered = query_stats["weight_posterior"] - scalarization_weights
+            report["weight_posterior"] = {
+                i: wandb.Histogram(post_centered[:, i])
+                for i in range(post_centered.shape[-1])
+            }
+
+            report["weight_msre"] = np.sqrt(post_centered**2).mean()
+            report["weight_variance"] = np.var(post_centered, axis=0).mean()
+            report["weight_variance_variance"] = np.var(np.var(post_centered, axis=0))
+
+        if "weight_map" in query_stats:
+            report["weight_map_msre"] = np.mean(
+                (self.scalarization_weights.numpy() - query_stats["weight_map"]) ** 2
+            )
+
+        self.report_step(report, self.step)
 
         return None, evaluation
 

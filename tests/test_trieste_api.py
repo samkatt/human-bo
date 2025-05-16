@@ -7,10 +7,10 @@ import trieste
 from human_bo import trieste_api
 
 
-def test_create_trieste_test_function():
+def test_create_test_function():
     """Tests `trieste_api.create_trieste_test_function`."""
     for f in ["Zhou", "Forrester", "Levy1D"]:
-        p = trieste_api.create_trieste_test_function(f)
+        p = trieste_api.create_test_function(f)
         assert isinstance(
             p, trieste.objectives.single_objectives.SingleObjectiveTestProblem
         )
@@ -22,12 +22,12 @@ def test_create_trieste_test_function():
             assert tf.experimental.numpy.isclose(obs, p.minimum, atol=0.01)
 
 
-def test_create_moo_trieste_test_function():
+def test_create_moo_test_function():
     """Tests `trieste_api.create_trieste_test_function` on MOO functions."""
 
     x_dim = 7
     o_dim = 4
-    p = trieste_api.create_trieste_test_function("DTLZ2", x_dim, o_dim)
+    p = trieste_api.create_test_function("DTLZ2", x_dim, o_dim)
     assert p.dim == x_dim
 
     y = p.objective(p.search_space.sample(1))
@@ -35,10 +35,10 @@ def test_create_moo_trieste_test_function():
 
 
 def test_BraninCurrin():
-    """Tests creating BraninCurrin with `trieste_api.create_trieste_test_function`."""
+    """Tests creating BraninCurrin with `trieste_api.create_test_function`."""
 
     # test Branin
-    branin = trieste_api.create_trieste_test_function("Branin")
+    branin = trieste_api.create_test_function("Branin")
 
     x = tf.convert_to_tensor([[0, 0], [0.5, 0.5], [1, 1]])
 
@@ -51,16 +51,16 @@ def test_BraninCurrin():
     y_currin = tf.convert_to_tensor([[3.0000], [7.4051], [4.0053]])
     y_bc = tf.concat((y_branin, y_currin), axis=-1)
 
-    bc = trieste_api.create_trieste_test_function("BraninCurrin")
+    bc = trieste_api.create_test_function("BraninCurrin")
 
     assert tf.reduce_all(tf.experimental.numpy.isclose(y_bc, bc.objective(x)))
 
 
-def test_create_trieste_observer():
+def test_create_observer():
     """Test `trieste_api.create_trieste_observer`."""
-    f = trieste_api.create_trieste_test_function("Zhou")
-    o = trieste_api.create_trieste_observer(f.objective, None)
-    o_noise = trieste_api.create_trieste_observer(f.objective, [0.1])
+    f = trieste_api.create_test_function("Zhou")
+    o = trieste_api.create_observer(f.objective, None)
+    o_noise = trieste_api.create_observer(f.objective, [0.1])
 
     x = f.search_space.sample(4)
 
@@ -85,31 +85,23 @@ def test_create_partial_moo_problem():
     z = [1]
     o = list(set(range(o_dim)) - set(z))
 
-    f = trieste_api.create_trieste_test_function("DTLZ2", x_dim, o_dim)
-
+    f = trieste_api.create_test_function("DTLZ2", x_dim, o_dim)
     assert isinstance(f, trieste.objectives.multi_objectives.MultiObjectiveTestProblem)
 
-    partial_moo_problem = trieste_api.create_partial_moo_problem(f, z)
-    partial_moo_problem_noise = trieste_api.create_partial_moo_problem(
-        f, z, [0.2, 0.5, 0.1]
-    )
+    partial_moo_problem = trieste_api.create_partial_moo_problem(f, o_dim, z)
 
     x = f.search_space.sample(n)
     y = f.objective(x)
 
     objectives = partial_moo_problem.objective(x)
-    objectives_noise = partial_moo_problem_noise.objective(x)
 
     assert objectives.shape == tf.TensorShape([n, o_dim - 1])
-    assert objectives_noise.shape == tf.TensorShape([n, o_dim - 1])
-
     tf.assert_equal(tf.gather(y, o, axis=-1), objectives)
-    tf.debugging.assert_none_equal(tf.gather(y, o, axis=-1), objectives_noise)
 
 
-def test_create_trieste_acqf():
-    """Tests `trieste_api`.create_trieste_acqf."""
+def test_create_acqf():
+    """Tests `trieste_api`.create_acqf."""
     # Test UCB will fail "gracefully" when not given a UCB beta value.
 
     with pytest.raises(AssertionError):
-        trieste_api.create_trieste_acqf("UCB", trieste.space.Box([0], [1]), {})
+        trieste_api.create_acqf("UCB", trieste.space.Box([0], [1]), {})

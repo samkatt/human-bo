@@ -1,22 +1,7 @@
-# Bayes optimization with human-in-the-loop
+# Bayes Optimization with Human-in-the-Loop
 
-In this setting we are interested in optimization of some (initially) unknown function by collaboration between an AI and human user.
-The main motivation is that the human may have domain knowledge and the AI can do principled Bayesian optimization, and that we should be able to combine both.
-The core research question we try to answer is how (artificial) theory of mind can help in this case.
-
-## Core Experiments
-
-On a high level, this code base allows you to run experiments and inspect its results.
-Since there are many choices to be made, e.g. what function to optimize, the configuration is quite extensive.
-However, the fundamental experiment is to minimize `regret` by optimizing `AI` given some function `f` and human `Human` as follows:
-
-```python
-for i in range(budget):
-    x_ai[i] = AI(...)
-    x_h[i] = Human(..., x)
-    y[i] = [f(x_ai), f(x_h)]
-    regret[i] = y_max - max(flatten(y[i]))
-```
+In this setting we are interested in optimization for human preferences.
+The core idea is to exploit multi-objective setting, without assuming the designer of the system knows all objectives a-priori.
 
 ## Installation
 
@@ -32,30 +17,16 @@ Entry points are in `scripts`.
 In particular, to run a simple Bayesian optimization problem, look at
 
 ```shell
-for seed in $(seq 1 5); do python scripts/run_human_ai_experiment.py -s ${seed} -ni 3 -b 10 -k RBF -a MES -f Zhou -e 0.1 -u oracle -f results-dir; done
+for seed in $(seq 1 5); do python scripts/run_bo.py -s ${seed} -ni 3 -b 10 -a MES -p Zhou -e 0.1 -f results-dir --wandb scripts/wandb_example_config.yaml; done
 ```
 
-Then visualize by giving the files. There are two visualizations supported right now.
-Either compare regrets (aggregates mean over different seed):
+
+Visualize the results with `scripts/visualize_human_ai_experiment.py`:
 
 ```sh
-python scripts/visualize.py -t regrets -f result-dir/*
+python scripts/visualize_human_ai_experiment.py results-dir/MES_Zhou_1.pkl 
 ```
 
-Or generate the full trajectory of a single run, in the case of 1-D optimization, mostly for debugging:
-
-```sh
-python scripts/visualize.py -t trajectory -f result-dir/Zhou_RBF_MES_1.pt
-```
-
-## Tests
-
-Install and run `pytest`:
-
-```sh
-python -m pip install pytest  # or python -m pip install .'[test]'
-python -m pytest
-```
 
 ## Data
 
@@ -72,11 +43,19 @@ To enable wandb, simply provide the configuration file: `python scripts/pick-a-s
 
 ## Development
 
+Install and run `pytest`:
+
+```sh
+python -m pip install pytest  # or python -m pip install .'[test]'
+python -m pytest
+```
+
 I recommend to install some packages to help with development (see `pyproject.toml`):
 
 ```sh
 python -m pip install .'[dev]'
 ```
+
 
 Try to keep the formatting consistent with `black .`
 
@@ -91,9 +70,5 @@ But I tend to just run `scripts/static_analysis.sh` and check the output.
 
 ### To do
 
-- [ ] Currently, all Trieste BO agents *seem* very similar in their usage of models. Maybe create one agent that creates a model dynamically (add abstraction).
+- [ ] Debug (visualizing) map. Seems to be stuck (e.g., in results on `python scripts/run_moo.py -t utility-learner -p BraninCurrin -a EI -f results -z 1`)
 - [ ] Fix all tensorflow warnings.
-- [ ] Rename and move components to get clear API between Trieste and my code.
-- [ ] Update README.
-- [ ] Update visualization to explicitly do Trieste.
-- [ ] Scale figures when plotting (especially in moo).

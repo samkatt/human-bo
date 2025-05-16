@@ -1,7 +1,5 @@
 """Code for integration with Trieste."""
 
-# TODO: remove `trieste` from function names.
-
 from collections.abc import Callable
 from typing import Any
 
@@ -13,7 +11,7 @@ import trieste
 from human_bo import interaction_loops, moo, posteriors, test_functions, utils
 
 
-def create_trieste_acqf(
+def create_acqf(
     acqf: str,
     search_space: trieste.space.SearchSpace,
     acqf_options: dict[str, Any],
@@ -40,7 +38,7 @@ def create_trieste_acqf(
     raise ValueError(f"{acqf} is not an accepted acquisition function")
 
 
-def optimize_trieste_acqf(
+def optimize_acqf(
     trieste_acqf: trieste.acquisition.interface.SingleModelAcquisitionBuilder,
     dataset: trieste.data.Dataset,
     trieste_model: trieste.models.interfaces.ProbabilisticModel,
@@ -61,7 +59,7 @@ def optimize_trieste_acqf(
     return trieste_rule.acquire_single(search_space, trieste_model, dataset)
 
 
-def create_trieste_test_function(
+def create_test_function(
     func: str,
     x_dim: int | None = None,
     o_dim: int | None = None,
@@ -131,6 +129,7 @@ def create_trieste_test_function(
             name="BraninCurrin",
             objective=bc,
             search_space=search_space,
+            # XXX: this is wrong.
             gen_pareto_optimal_points=lambda n, seed=None: tf.stack(
                 generate_pareto_optimal_points(n, bc, search_space), axis=-1
             ),
@@ -161,9 +160,7 @@ def create_noisey_f(
     return noisey_f
 
 
-def create_trieste_observer(
-    f, noise_stdev: list[float] | None
-) -> trieste.observer.Observer:
+def create_observer(f, noise_stdev: list[float] | None) -> trieste.observer.Observer:
     """Makes `f` noisey (with deviation `noise_stdev`) and a Trieste observer out of it.
 
     If `noise_stdev` is `None`, this will return a noiseless problem `f`.
@@ -176,25 +173,20 @@ def create_trieste_observer(
     return trieste.objectives.utils.mk_observer(create_noisey_f(f, noise_stdev))
 
 
-# TODO: move to `human_bo.moo`.
 def create_partial_moo_problem(
     moo_problem: trieste.objectives.multi_objectives.MultiObjectiveTestProblem,
+    o_dim: int,
     z: list[int],
-    noise_stdev: list[float] | None = None,
 ) -> trieste.objectives.multi_objectives.MultiObjectiveTestProblem:
+    assert o_dim > 0
+    for z_i in z:
+        assert 0 <= z_i < o_dim
 
-    if noise_stdev is None:
-        print("Creating observer without noise - your problem has no noise.")
-        objectives_function = moo_problem.objective
-    else:
-        objectives_function = create_noisey_f(moo_problem.objective, noise_stdev)
+    o_dims_observed = list(set(range(o_dim)) - set(z))
 
     def partial_objective_function(X: trieste.types.TensorType):
-        o = objectives_function(X)
-        # TODO: pre-compute this outside of the definition.
-        observed_dim = set(range(o.shape[-1])) - set(z)
-
-        return tf.gather(o, list(observed_dim), axis=-1)
+        o = moo_problem.objective(X)
+        return tf.gather(o, o_dims_observed, axis=-1)
 
     return trieste.objectives.multi_objectives.MultiObjectiveTestProblem(
         f"{moo_problem.name}-latent-{z}",
@@ -252,7 +244,7 @@ class RandomAgent(interaction_loops.Agent):
         del query, feedback, evaluation
 
 
-class TriesteBO(interaction_loops.Agent):
+class BO(interaction_loops.Agent):
 
     def __init__(
         self,
@@ -264,8 +256,8 @@ class TriesteBO(interaction_loops.Agent):
         self.data = data
         self.search_space = search_space
         self.step = -1
-        self.acqf = create_trieste_acqf(acqf, self.search_space, acqf_options)
-        self.mean_acqf = create_trieste_acqf("mean", self.search_space, {})
+        self.acqf = create_acqf(acqf, self.search_space, acqf_options)
+        self.mean_acqf = create_acqf("mean", self.search_space, {})
 
     def pick_query(self) -> tuple[Any, dict[str, Any]]:
         self.step += 1
@@ -276,7 +268,7 @@ class TriesteBO(interaction_loops.Agent):
         try:
             y_sca, y_mean, y_std = utils.normalize(self.data.observations)
             data_sca = trieste.data.Dataset(self.data.query_points, y_sca)
-            model = posteriors.create_trieste_gp(data_sca, self.search_space)
+            model = posteriors.create_gp(data_sca, self.search_space)
 
         except tf.errors.InvalidArgumentError as e:
             print(
@@ -288,7 +280,7 @@ class TriesteBO(interaction_loops.Agent):
 
         # Pick query given model (or return random if fails).
         try:
-            query = optimize_trieste_acqf(self.acqf, data_sca, model, self.search_space)
+            query = optimize_acqf(self.acqf, data_sca, model, self.search_space)
         except trieste.acquisition.optimizer.FailedOptimizationError as e:
             print(
                 "`TriesteBO.pick_query` failed to optimize, returning random sample.",
@@ -299,9 +291,7 @@ class TriesteBO(interaction_loops.Agent):
 
         # Get MAP (for reporting statistics).
         try:
-            arg_map = optimize_trieste_acqf(
-                self.mean_acqf, data_sca, model, self.search_space
-            )
+            arg_map = optimize_acqf(self.mean_acqf, data_sca, model, self.search_space)
             # Un-normalize predicted MAP.
             map_mean = model.predict(arg_map)[0] * y_std + y_mean
 
@@ -345,8 +335,8 @@ class CompositeBO(interaction_loops.Agent):
         self.data = data
         self.search_space = search_space
         self.step = -1
-        self.acqf = create_trieste_acqf(acqf, self.search_space, acqf_options)
-        self.mean_acqf = create_trieste_acqf("mean", self.search_space, {})
+        self.acqf = create_acqf(acqf, self.search_space, acqf_options)
+        self.mean_acqf = create_acqf("mean", self.search_space, {})
 
     def pick_query(self) -> tuple[Any, dict[str, Any]]:
         self.step += 1
@@ -366,9 +356,7 @@ class CompositeBO(interaction_loops.Agent):
 
         # Pick query given model.
         try:
-            query = optimize_trieste_acqf(
-                self.acqf, self.data, model, self.search_space
-            )
+            query = optimize_acqf(self.acqf, self.data, model, self.search_space)
         except trieste.acquisition.optimizer.FailedOptimizationError as e:
             print(
                 "`CompositeBO.pick_query` failed to optimize, returning random sample.",
@@ -378,9 +366,7 @@ class CompositeBO(interaction_loops.Agent):
             query = self.search_space.sample(1)
 
         try:
-            arg_map = optimize_trieste_acqf(
-                self.mean_acqf, self.data, model, self.search_space
-            )
+            arg_map = optimize_acqf(self.mean_acqf, self.data, model, self.search_space)
             map_mean = model.predict(arg_map)[0]
 
             query_stats["map"] = {"x": np.array(arg_map), "y": np.array(map_mean)}
@@ -426,10 +412,8 @@ class UtilityBO(interaction_loops.Agent):
         self.data_objectives = data_objectives
         self.data_y = data_cost
         self.step = -1
-        self.acqf = create_trieste_acqf(
-            acqf, self.objectives.search_space, acqf_options
-        )
-        self.mean_acqf = create_trieste_acqf("mean", self.objectives.search_space, {})
+        self.acqf = create_acqf(acqf, self.objectives.search_space, acqf_options)
+        self.mean_acqf = create_acqf("mean", self.objectives.search_space, {})
 
     def pick_query(self) -> tuple[Any, dict[str, Any]]:
         self.step += 1
@@ -463,7 +447,7 @@ class UtilityBO(interaction_loops.Agent):
 
         # Pick query given model.
         try:
-            query = optimize_trieste_acqf(
+            query = optimize_acqf(
                 self.acqf, acqf_data, model, self.objectives.search_space
             )
         except trieste.acquisition.optimizer.FailedOptimizationError as e:
@@ -475,7 +459,7 @@ class UtilityBO(interaction_loops.Agent):
             query = self.objectives.search_space.sample(1)
 
         try:
-            arg_map = optimize_trieste_acqf(
+            arg_map = optimize_acqf(
                 self.mean_acqf,
                 acqf_data,
                 model,

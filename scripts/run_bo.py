@@ -49,12 +49,12 @@ def main():
     random.seed(exp_params["seed"])
 
     # Create problem and evaluation.
-    trieste_problem = trieste_api.create_trieste_test_function(exp_params["problem"])
+    test_function = trieste_api.create_test_function(exp_params["problem"])
     assert isinstance(
-        trieste_problem, trieste.objectives.single_objectives.SingleObjectiveTestProblem
+        test_function, trieste.objectives.single_objectives.SingleObjectiveTestProblem
     )
-    observer = trieste_api.create_trieste_observer(
-        trieste_problem.objective, noise_stdev=exp_params["problem_noise"]
+    observer = trieste_api.create_observer(
+        test_function.objective, noise_stdev=exp_params["problem_noise"]
     )
     problem = Problem(observer)
 
@@ -65,37 +65,37 @@ def main():
         if exp_params["wandb"]
         else reporting.print_dot
     )
-    evaluation = Evaluation(trieste_problem, report_step)
+    evaluation = Evaluation(test_function, report_step)
 
     # Create Agents
-    x_init = trieste_problem.search_space.sample(exp_params["n_init"])
+    x_init = test_function.search_space.sample(exp_params["n_init"])
     data_init = observer(x_init)
 
     assert isinstance(data_init, trieste.data.Dataset)
 
     if exp_params["acqf"] != "random":
-        ai: interaction_loops.Agent = trieste_api.TriesteBO(
+        ai: interaction_loops.Agent = trieste_api.BO(
             data_init,
-            trieste_problem.search_space,
+            test_function.search_space,
             exp_params["acqf"],
             acqf_options=conf.get_entries_with_tag(exp_params, "acqf-option"),
         )
     else:
-        ai = trieste_api.RandomAgent(trieste_problem.search_space)
+        ai = trieste_api.RandomAgent(test_function.search_space)
 
     print(f"Running experiment for {path}")
     res = interaction_loops.basic_loop(ai, problem, evaluation, exp_params["budget"])
 
     # Post-process data for easy visualization later.
     res["conf"] = exp_params
-    res["conf"]["experiment_type"] = "trieste"
+    res["conf"]["experiment_type"] = "bo"
 
     map_y = np.array(
         [[i["map"]] if "map" in i else [np.nan] for i in res["evaluation_stats"]]
     )
     map_x = np.array(
         [
-            (i["map"]["x"][0] if "map" in i else np.full(trieste_problem.dim, np.nan))
+            (i["map"]["x"][0] if "map" in i else np.full(test_function.dim, np.nan))
             for i in res["query_stats"]
         ]
     )

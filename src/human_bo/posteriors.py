@@ -9,9 +9,7 @@ import trieste
 from human_bo import moo, utils
 
 
-def create_trieste_gp(
-    data: trieste.data.Dataset, search_space: trieste.space.SearchSpace
-):
+def create_gp(data: trieste.data.Dataset, search_space: trieste.space.SearchSpace):
     """Factory function for creating (Trieste) posterior models.
 
     This is just a basic GP.
@@ -70,8 +68,6 @@ class CompositeGP(trieste.models.interfaces.SupportsGetObservationNoise):
         API for probabilistic models. In particular, `sample` is done by sampling
         from the individual GPs and then computing the cost given the `scalarization_weights`.
         """
-        # TODO: Reconsider whether we should be normalizing HERE.
-
         self.scalarization_weights = tf.convert_to_tensor(
             scalarization_weights, tf.float64
         )
@@ -95,7 +91,7 @@ class CompositeGP(trieste.models.interfaces.SupportsGetObservationNoise):
             self.o_means.append(mean)
             self.o_stds.append(std)
 
-            self.models.append(create_trieste_gp(single_data, search_space))
+            self.models.append(create_gp(single_data, search_space))
 
     def sample(
         self, query_points: trieste.types.TensorType, num_samples: int
@@ -203,9 +199,7 @@ class UtilityDistribution(trieste.models.interfaces.SupportsGetObservationNoise)
     """Note `SupportsGetObservationNoise` is a `ProbabilisticModel`."""
 
     def __init__(
-        self,
-        data: trieste.data.Dataset,
-        objectives,
+        self, data: trieste.data.Dataset, objectives, utility_noise: float = 0.1
     ):
         """A distribution over the utility given known objective functions.
 
@@ -226,8 +220,7 @@ class UtilityDistribution(trieste.models.interfaces.SupportsGetObservationNoise)
         assert isinstance(o, tf.Tensor) and isinstance(u, tf.Tensor)
         assert isinstance(n, int) and isinstance(o_dim, int)
 
-        # TODO: make this input?
-        self.utility_noise = tf.convert_to_tensor(0.1, tf.float64)
+        self.utility_noise = tf.convert_to_tensor(utility_noise, tf.float64)
         self.o_dim = o_dim
 
         self.objectives = objectives

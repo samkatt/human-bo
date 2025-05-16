@@ -22,12 +22,12 @@ def visualize_trajectory_1D(data) -> None:
     """
     # Load configurations and data.
     exp_params = data["conf"]
-    problem = trieste_api.create_trieste_test_function(exp_params["problem"])
+    problem = trieste_api.create_test_function(exp_params["problem"])
     observer = trieste.objectives.utils.mk_observer(problem.objective)
 
     acqf_options = conf.get_entries_with_tag(exp_params, "acqf-option")
     if exp_params["acqf"] != "random":
-        acqf = trieste_api.create_trieste_acqf(
+        acqf = trieste_api.create_acqf(
             exp_params["acqf"], problem.search_space, acqf_options
         )
     else:
@@ -65,7 +65,7 @@ def visualize_trajectory_1D(data) -> None:
             data = trieste.data.Dataset(
                 tf.convert_to_tensor(x), tf.convert_to_tensor(y_sta[..., np.newaxis])
             )
-            model = posteriors.create_trieste_gp(data, problem.search_space)
+            model = posteriors.create_gp(data, problem.search_space)
 
             y_mean, y_var = model.predict_y(tf.convert_to_tensor(x_linspace))
             y_mean = y_mean * v + m
@@ -229,12 +229,12 @@ def visualize_trajectory_2D(data) -> None:
     """
     # Load configurations and results.
     exp_params = data["conf"]
-    problem = trieste_api.create_trieste_test_function(exp_params["problem"])
+    problem = trieste_api.create_test_function(exp_params["problem"])
     observer = trieste.objectives.utils.mk_observer(problem.objective)
 
     acqf_options = conf.get_entries_with_tag(exp_params, "acqf-option")
     if exp_params["acqf"] != "random":
-        acqf = trieste_api.create_trieste_acqf(
+        acqf = trieste_api.create_acqf(
             exp_params["acqf"], problem.search_space, acqf_options
         )
     else:
@@ -279,7 +279,7 @@ def visualize_trajectory_2D(data) -> None:
             data = trieste.data.Dataset(
                 tf.convert_to_tensor(x), tf.convert_to_tensor(y_sta[..., np.newaxis])
             )
-            model = posteriors.create_trieste_gp(data, problem.search_space)
+            model = posteriors.create_gp(data, problem.search_space)
 
             y_mean, y_var = model.predict_y(tf.convert_to_tensor(X))
             y_mean = y_mean * v + m
@@ -445,7 +445,7 @@ def visualize_trajectory_2D(data) -> None:
 def visualize_moo(results):
     # Re-create problem and its dimensions.
     exp_params = results["conf"]
-    problem = trieste_api.create_trieste_test_function(
+    problem = trieste_api.create_test_function(
         exp_params["problem"], exp_params["x_dim"], exp_params["o_dim"]
     )
     observer = trieste.objectives.utils.mk_observer(problem.objective)
@@ -531,8 +531,8 @@ def visualize_moo(results):
     for o in range(num_objs):
         ax_u.plot(objectives[..., o], label=f"obj {o}", alpha=0.75)
     ax_u.plot(utilities.reshape(-1), label="Utility", color="black")
-    ax_u.plot(map_u.reshape(-1), label="MAP", color="brown")
-    (lines_u_next,) = ax_u.plot(utilities[-1], n, "ro", label="Next")
+    ax_u.plot(map_u.reshape(-1), label="MAP", color="green")
+    (lines_u_next,) = ax_u.plot(n - 1, utilities[-1], "ro", label="Next")
     ax_u.set_xlim(0, n)
     ax_u.set_xlabel("budget")
     ax_u.set_ylabel("u")
@@ -542,7 +542,7 @@ def visualize_moo(results):
     # X lines plots
     for d in range(dim):
         ax_x_lines.plot(queries[..., d], label=f"X_{d}", alpha=0.75)
-    (lines_x_next,) = ax_x_lines.plot(0, n, "ro", label="Next")
+    (lines_x_next,) = ax_x_lines.plot(n - 1, 0, "ro", label="Next")
     ax_x_lines.set_xlim(0, n)
     ax_x_lines.legend()
 

@@ -90,10 +90,10 @@ def main():
     res["conf"] = exp_params
     res["conf"]["experiment_type"] = "trieste"
 
-    map_y = np.stack(
-        [i["map"] if "map" in i else [np.nan] for i in res["evaluation_stats"]]
+    map_y = np.array(
+        [[i["map"]] if "map" in i else [np.nan] for i in res["evaluation_stats"]]
     )
-    map_x = np.stack(
+    map_x = np.array(
         [
             (i["map"]["x"][0] if "map" in i else np.full(trieste_problem.dim, np.nan))
             for i in res["query_stats"]
@@ -102,9 +102,9 @@ def main():
 
     res["results"] = {
         "data_init": {"x": np.array(x_init), "y": np.array(data_init.observations)},
-        "queries": np.stack(res["query"]),
-        "observations": np.stack([f.observations for f in res["feedback"]]),
-        "y_min": np.stack([d["y_min"] for d in res["evaluation_stats"]]),
+        "queries": np.array(res["query"]),
+        "observations": np.array([f["y"] for f in res["feedback"]]),
+        "y_min": np.array([d["y_min"] for d in res["evaluation_stats"]]),
         "map": {"arg_max": map_x, "max": map_y},
     }
 
@@ -122,7 +122,9 @@ class Problem(interaction_loops.Problem):
 
     def give_feedback(self, query) -> tuple[Any, dict[str, Any]]:
         feedback = self.observer(query)
-        return feedback, {}
+        assert isinstance(feedback, trieste.data.Dataset)
+
+        return {"x": feedback.query_points, "y": feedback.observations}, {}
 
     def observe(self, query, feedback, evaluation) -> None:
         del query, feedback, evaluation
@@ -152,9 +154,7 @@ class Evaluation(interaction_loops.Evaluation):
     ) -> tuple[Any, dict[str, Any]]:
         del feedback_stats, kwargs
 
-        assert isinstance(feedback, trieste.data.Dataset)
-
-        y_observed = np.array(feedback.observations)[0, 0]
+        y_observed = np.array(feedback["y"])[0, 0]
         self.obs_min = min(self.obs_min, y_observed)
 
         y_true = np.array(self.problem.objective(query))[0, 0]

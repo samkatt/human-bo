@@ -482,7 +482,7 @@ def visualize_moo(results):
 
     # Get data from file.
     queries = results["results"]["queries"]
-    objectives = results["results"]["objectives"]
+    objectives = results["results"]["o_all"]
     utilities = results["results"]["observations"]
 
     if "map" in results["results"]:

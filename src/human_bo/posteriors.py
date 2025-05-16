@@ -50,7 +50,7 @@ class WeightedParticles:
     def map(self) -> Any:
         """Returns the most likely element in `particles` according to `logits`.
 
-        NOTE: does *not care* for repeating particles (as in, will not add their weight).
+        Does *not care* for repeating particles (as in, will not add their weight).
         """
         return tf.gather(self.particles, self.distr.mode())
 
@@ -269,13 +269,13 @@ class UtilityDistribution(trieste.models.interfaces.SupportsGetObservationNoise)
         samples = self.sample(query_points, self.n_predictions)
         assert samples.shape == tf.TensorShape([*b, self.n_predictions, n, 1])
 
-        m = tf.reduce_mean(samples, axis=len(b))
-        v = tf.math.reduce_variance(samples, len(b))
+        mean = tf.reduce_mean(samples, axis=len(b))
+        var = tf.math.reduce_variance(samples, len(b))
 
-        assert m.shape == tf.TensorShape([*b, n, 1]) and v.shape == tf.TensorShape(
-            [*b, n, 1]
-        )
-        return m, v
+        assert mean.shape == tf.TensorShape([*b, n, 1])
+        assert var.shape == tf.TensorShape([*b, n, 1])
+
+        return mean, var
 
     def log(self, dataset: trieste.data.Dataset | None = None) -> None:
         """Abstract method of `ProbabilisticModel`, unused in this code base."""

@@ -76,6 +76,37 @@ def test_create_trieste_observer():
     tf.debugging.assert_none_equal(y, data_noise.observations)
 
 
+def test_create_partial_moo_problem():
+    """Test `trieste_api.create_partial_moo_problem`."""
+    x_dim = 4
+    o_dim = 3
+    n = 4
+
+    z = [1]
+    o = list(set(range(o_dim)) - set(z))
+
+    f = trieste_api.create_trieste_test_function("DTLZ2", x_dim, o_dim)
+
+    assert isinstance(f, trieste.objectives.multi_objectives.MultiObjectiveTestProblem)
+
+    partial_moo_problem = trieste_api.create_partial_moo_problem(f, z)
+    partial_moo_problem_noise = trieste_api.create_partial_moo_problem(
+        f, z, [0.2, 0.5, 0.1]
+    )
+
+    x = f.search_space.sample(n)
+    y = f.objective(x)
+
+    objectives = partial_moo_problem.objective(x)
+    objectives_noise = partial_moo_problem_noise.objective(x)
+
+    assert objectives.shape == tf.TensorShape([n, o_dim - 1])
+    assert objectives_noise.shape == tf.TensorShape([n, o_dim - 1])
+
+    tf.assert_equal(tf.gather(y, o, axis=-1), objectives)
+    tf.debugging.assert_none_equal(tf.gather(y, o, axis=-1), objectives_noise)
+
+
 def test_create_trieste_acqf():
     """Tests `trieste_api`.create_trieste_acqf."""
     # Test UCB will fail "gracefully" when not given a UCB beta value.

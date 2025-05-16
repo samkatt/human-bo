@@ -12,7 +12,7 @@ CONFIG: dict[str, dict[str, Any]] = {
         "type": float,
         "shorthand": "w",
         "help": "The (linear) scalarization weights.",
-        "tags": {"experiment-hyper-parameter", "problem-parameters"},
+        "tags": {"experiment-hyper-parameter", "problem-parameter"},
         "parser-arguments": {
             "nargs": "+",
         },
@@ -21,14 +21,14 @@ CONFIG: dict[str, dict[str, Any]] = {
         "type": int,
         "shorthand": "d",
         "help": "Number of dimensions of `x` (query).",
-        "tags": {"experiment-parameter", "problem-parameters"},
+        "tags": {"experiment-parameter", "problem-parameter"},
         "parser-arguments": {"default": 2},
     },
     "o_dim": {
         "type": int,
         "shorthand": "o",
         "help": "Number of objectives.",
-        "tags": {"experiment-parameter", "problem-parameters"},
+        "tags": {"experiment-parameter", "problem-parameter"},
         "parser-arguments": {"default": 2},
     },
     "type_agent": {
@@ -40,6 +40,13 @@ CONFIG: dict[str, dict[str, Any]] = {
             "choices": {"random", "bo", "composite", "utility-learner"},
             "required": True,
         },
+    },
+    "latent_objectives": {
+        "type": int,
+        "shorthand": "z",
+        "help": "The list of objectives that are latent.",
+        "tags": {"experiment-parameter", "problem-parameter"},
+        "parser-arguments": {"nargs": "+", "default": []},
     },
 }
 

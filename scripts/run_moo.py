@@ -49,27 +49,42 @@ def main():
     np.random.seed(exp_params["seed"])
     random.seed(exp_params["seed"])
 
+    z = exp_params["latent_objectives"]
+    z_dim = len(z)
+    # TODO: rephrase this throughout the code.
+    o_dim = exp_params["o_dim"] - z_dim
+    x_dim = exp_params["x_dim"]
+
     # Create problem and evaluation.
     if exp_params["scalarization_weights"] is None:
         exp_params["scalarization_weights"] = moo.sample_scalarization_weights(
-            exp_params["o_dim"]
+            o_dim + z_dim
         )
-
     scalarization_weights = tf.convert_to_tensor(
         exp_params["scalarization_weights"], tf.float64
     )
-    assert 0.99 < sum(scalarization_weights) < 1.01, "Preference weights must sum to 1"
-    assert len(scalarization_weights) == exp_params["o_dim"], "Enter `| -o| ` scalars"
 
-    trieste_problem = trieste_api.create_trieste_test_function(
-        exp_params["problem"], exp_params["x_dim"], exp_params["o_dim"]
+    assert 0.99 < sum(scalarization_weights) < 1.01, "Preference weights must sum to 1"
+    assert len(scalarization_weights) == o_dim + z_dim, "Enter `| -o| ` scalars"
+
+    objective_function = trieste_api.create_trieste_test_function(
+        exp_params["problem"], x_dim, o_dim + z_dim
     )
     assert isinstance(
-        trieste_problem, trieste.objectives.multi_objectives.MultiObjectiveTestProblem
+        objective_function,
+        trieste.objectives.multi_objectives.MultiObjectiveTestProblem,
     )
-    problem = Problem(
-        trieste_problem, scalarization_weights, exp_params["problem_noise"]
-    )
+    if z_dim == 0:
+        problem: Problem | PartiallyLatentProblem = Problem(
+            objective_function, scalarization_weights, exp_params["problem_noise"]
+        )
+    else:
+        problem = PartiallyLatentProblem(
+            objective_function,
+            scalarization_weights,
+            exp_params["problem_noise"],
+            z,
+        )
 
     report_step = (
         reporting.initiate_and_create_wandb_logger(
@@ -78,50 +93,49 @@ def main():
         if exp_params["wandb"]
         else reporting.print_dot
     )
-    evaluation = Evaluation(trieste_problem, scalarization_weights, report_step)
+    # TODO: check if `Evaluation` needs adaptation to latent objectives.
+    evaluation = Evaluation(objective_function, scalarization_weights, z, report_step)
 
     # Create Agents
-    x_init = trieste_problem.search_space.sample(exp_params["n_init"])
-    x_to_o_init = problem.observer(x_init)
-    assert isinstance(x_to_o_init, trieste.data.Dataset) and isinstance(
-        x_to_o_init.observations, tf.Tensor
-    )
-    # XXX: We assume utility function has no noise.
-    y_init = moo.scalarize_objectives(x_to_o_init.observations, scalarization_weights)
+    x_init = objective_function.search_space.sample(exp_params["n_init"])
+    f_init, _ = problem.give_feedback(x_init)
 
     if exp_params["type_agent"] == "bo":
-        x_to_y_init = trieste.data.Dataset(
-            x_init,
-            y_init,
-        )
         ai: interaction_loops.Agent = trieste_api.TriesteBO(
-            x_to_y_init,
-            trieste_problem.search_space,
+            trieste.data.Dataset(x_init, f_init["y"]),
+            objective_function.search_space,
             exp_params["acqf"],
             acqf_options=conf.get_entries_with_tag(exp_params, "acqf-option"),
         )
 
     elif exp_params["type_agent"] == "composite":
+        if z_dim != 0:
+            raise NotImplementedError(
+                "`-t composite` agent with latent objectives `-z` is not supported."
+            )
+
         ai = trieste_api.CompositeBO(
             exp_params["scalarization_weights"],
-            x_to_o_init,
-            trieste_problem.search_space,
+            trieste.data.Dataset(x_init, f_init["o"]),
+            objective_function.search_space,
             exp_params["acqf"],
             acqf_options=conf.get_entries_with_tag(exp_params, "acqf-option"),
         )
 
     elif exp_params["type_agent"] == "utility-learner":
-        o_to_y_init = trieste.data.Dataset(x_to_o_init.observations, y_init)
+        partial_objective_function = trieste_api.create_partial_moo_problem(
+            objective_function, z
+        )
         ai = trieste_api.UtilityBO(
-            trieste_problem,
-            x_to_o_init,
-            o_to_y_init,
+            partial_objective_function,
+            trieste.data.Dataset(x_init, f_init["o"]),
+            trieste.data.Dataset(f_init["o"], f_init["y"]),
             exp_params["acqf"],
             acqf_options=conf.get_entries_with_tag(exp_params, "acqf-option"),
         )
 
     elif exp_params["type_agent"] == "random":
-        ai = trieste_api.RandomAgent(trieste_problem.search_space)
+        ai = trieste_api.RandomAgent(objective_function.search_space)
 
     else:
         raise ValueError(f"{exp_params['type_agent']} is not supported")
@@ -134,11 +148,15 @@ def main():
     res["conf"]["experiment_type"] = "trieste"
 
     map_y = np.array(
-        [i["map"] if "map" in i else np.nan for i in res["evaluation_stats"]]
-    ).reshape(-1, 1)
-    map_x = np.stack(
+        [[i["map"]] if "map" in i else [np.nan] for i in res["evaluation_stats"]]
+    )
+    map_x = np.array(
         [
-            (i["map"]["x"][0] if "map" in i else np.full(trieste_problem.dim, np.nan))
+            (
+                i["map"]["x"][0]
+                if "map" in i
+                else np.full(objective_function.dim, np.nan)
+            )
             for i in res["query_stats"]
         ]
     )
@@ -150,15 +168,18 @@ def main():
     res["results"] = {
         "data_init": {
             "x": np.array(x_init),
-            "o": np.array(x_to_o_init.observations),
-            "y": np.array(y_init),
+            "o": np.array(f_init["o"]),
+            "y": np.array(f_init["y"]),
         },
-        "queries": np.stack(res["query"]),
-        "observations": np.stack([f["cost"].observations for f in res["feedback"]]),
-        "objectives": np.stack([r["objectives"].observations for r in res["feedback"]]),
-        "y_min": np.stack([d["y_min"] for d in res["evaluation_stats"]]),
+        "queries": np.array(res["query"]),
+        "observations": np.array([f["y"] for f in res["feedback"]]),
+        "o_all": np.array([r["o_all"] for r in res["feedback"]]),
+        "y_min": np.array([d["y_min"] for d in res["evaluation_stats"]]),
         "map": {"arg_max": map_x, "max": map_y, "obj": map_o},
     }
+
+    if z_dim > 0:
+        res["results"]["data_init"]["z"] = np.array(f_init["z"])
 
     with open(path, "wb") as f:
         pickle.dump(res, f)
@@ -181,22 +202,76 @@ class Problem(interaction_loops.Problem):
         self.scalarization_weights = scalarization_weights
 
     def give_feedback(self, query) -> tuple[Any, dict[str, Any]]:
-        objectives = self.observer(query)
+        data_points = self.observer(query)
+        assert isinstance(data_points, trieste.data.Dataset)
 
-        assert isinstance(objectives, trieste.data.Dataset)
-        assert isinstance(objectives.observations, tf.Tensor)
+        objectives = data_points.observations
+        assert isinstance(objectives, tf.Tensor)
 
-        cost = trieste.data.Dataset(
-            query,
-            # XXX: We assume utility function has no noise.
-            moo.scalarize_objectives(
-                objectives.observations, self.scalarization_weights
-            ),
-        )
-        return {"cost": cost, "objectives": objectives}, {}
+        # NOTE: we have no noise in the utility function.
+        y = moo.scalarize_objectives(objectives, self.scalarization_weights)
+
+        return {"x": query, "o_all": objectives, "o": objectives, "y": y}, {}
 
     def observe(self, query, feedback, evaluation) -> None:
         del query, feedback, evaluation
+
+
+# TODO: maybe merge with `Problem` as that is a special case (`latent_objectives=[]`).
+class PartiallyLatentProblem(interaction_loops.Problem):
+    """A 'problem' in MOO with a latent objective."""
+
+    def __init__(
+        self,
+        objective_function: trieste.objectives.multi_objectives.MultiObjectiveTestProblem,
+        scalarization_weights: tf.Tensor,
+        problem_noise: list[float] | None,
+        latent_objectives: list[int],
+    ):
+        """Creates the true `Problem`, but hides `latent_objective` from the agent."""
+        output_dim = objective_function.objective(
+            objective_function.search_space.sample(1)
+        ).shape[-1]
+        assert isinstance(output_dim, int)
+        for o in latent_objectives:
+            assert 0 <= o < output_dim
+
+        self.problem = Problem(objective_function, scalarization_weights, problem_noise)
+        self.observed_objectives = list(set(range(output_dim)) - set(latent_objectives))
+        self.latent_objectives = latent_objectives
+
+    def give_feedback(self, query) -> tuple[Any, dict[str, Any]]:
+        """Part of the `interaction_loops.Problem` API.
+
+        Calls the underlying true `self.problem` for the real feedback,
+        and then hides `latent_objective`.
+        """
+        feedback, stats = self.problem.give_feedback(query)
+
+        # Now, we separate latent and observed objectives.
+        o_all = feedback["o_all"]
+
+        feedback["z"] = tf.gather(o_all, self.latent_objectives, axis=-1)
+        feedback["o"] = tf.gather(o_all, self.observed_objectives, axis=-1)
+
+        return feedback, stats
+
+    def observe(self, query, feedback, evaluation) -> None:
+        """Part of the `interaction_loops.Problem` API.
+
+        This class adds nothing, but just forwards it to `self.problem.observe`.
+        """
+        self.problem.observe(query, feedback, evaluation)
+
+    @property
+    def observer(self):
+        """Exposes `observer` in `self.problem`."""
+        return self.problem.observer
+
+    @property
+    def scalarization_weights(self):
+        """Exposes `scalarization_weights` in `self.problem`."""
+        return self.problem.scalarization_weights
 
 
 class Evaluation(interaction_loops.Evaluation):
@@ -206,10 +281,19 @@ class Evaluation(interaction_loops.Evaluation):
         self,
         problem: trieste.objectives.multi_objectives.MultiObjectiveTestProblem,
         scalarization_weights: tf.Tensor,
+        latent_objectives: list[int],
         report_step: reporting.StepReport,
     ):
         self.problem = problem
+        self.latent_objectives = latent_objectives
+        self.observed_objectives = list(
+            set(range(len(scalarization_weights))) - set(latent_objectives)
+        )
+
         self.scalarization_weights = scalarization_weights
+        self.observed_objectives_weights = tf.gather(
+            scalarization_weights, self.observed_objectives, axis=-1
+        ).numpy()
 
         self.obs_min, self.y_min = np.inf, np.inf
         self.step = -1
@@ -226,7 +310,7 @@ class Evaluation(interaction_loops.Evaluation):
         del feedback_stats, kwargs
         self.step += 1
 
-        y_observed = np.array(feedback["cost"].observations)[0, 0]
+        y_observed = feedback["y"].numpy()[0, 0]
         self.obs_min = min(self.obs_min, y_observed)
 
         o_true = self.problem.objective(query)
@@ -261,8 +345,9 @@ class Evaluation(interaction_loops.Evaluation):
         if "observation_noise" in query_stats:
             report["query_observation_noise"] = query_stats["observation_noise"]
         if "weight_posterior" in query_stats:
-            scalarization_weights = self.scalarization_weights.numpy()
-            post_centered = query_stats["weight_posterior"] - scalarization_weights
+            post_centered = (
+                query_stats["weight_posterior"] - self.observed_objectives_weights
+            )
             report["weight_posterior"] = {
                 i: wandb.Histogram(post_centered[:, i])
                 for i in range(post_centered.shape[-1])
@@ -274,7 +359,7 @@ class Evaluation(interaction_loops.Evaluation):
 
         if "weight_map" in query_stats:
             report["weight_map_msre"] = np.mean(
-                (self.scalarization_weights.numpy() - query_stats["weight_map"]) ** 2
+                (self.observed_objectives_weights - query_stats["weight_map"]) ** 2
             )
 
         self.report_step(report, self.step)

@@ -1,5 +1,8 @@
 """Code for integration with Trieste."""
 
+# TODO: remove `trieste` from function names.
+
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -136,6 +139,28 @@ def create_trieste_test_function(
     raise ValueError(f"{func} is not an accepted Trieste test function")
 
 
+def create_noisey_f(
+    f, noise_stdev
+) -> Callable[[trieste.types.TensorType], trieste.types.TensorType]:
+    """Makes `f` noisey (with deviation `noise_stdev`).
+
+    If `noise_stdev` is `None`, this will return a noiseless problem `f`.
+    """
+
+    mvn = tfp.distributions.MultivariateNormalDiag(
+        scale_diag=tf.convert_to_tensor(noise_stdev, tf.float64)
+    )
+
+    def noisey_f(X: trieste.types.TensorType):
+        y = f(X)
+        noise = mvn.sample(len(y))
+
+        assert y.shape == noise.shape
+        return y + noise
+
+    return noisey_f
+
+
 def create_trieste_observer(
     f, noise_stdev: list[float] | None
 ) -> trieste.observer.Observer:
@@ -145,21 +170,38 @@ def create_trieste_observer(
     """
 
     if noise_stdev is None:
-        print("NOTE:creating observer without noise - your problem has no noise.")
+        print("Creating observer without noise - your problem has no noise.")
         return trieste.objectives.utils.mk_observer(f)
 
-    mvn = tfp.distributions.MultivariateNormalDiag(
-        scale_diag=tf.convert_to_tensor(noise_stdev, tf.float64)
+    return trieste.objectives.utils.mk_observer(create_noisey_f(f, noise_stdev))
+
+
+# TODO: move to `human_bo.moo`.
+def create_partial_moo_problem(
+    moo_problem: trieste.objectives.multi_objectives.MultiObjectiveTestProblem,
+    z: list[int],
+    noise_stdev: list[float] | None = None,
+) -> trieste.objectives.multi_objectives.MultiObjectiveTestProblem:
+
+    if noise_stdev is None:
+        print("Creating observer without noise - your problem has no noise.")
+        objectives_function = moo_problem.objective
+    else:
+        objectives_function = create_noisey_f(moo_problem.objective, noise_stdev)
+
+    def partial_objective_function(X: trieste.types.TensorType):
+        o = objectives_function(X)
+        # TODO: pre-compute this outside of the definition.
+        observed_dim = set(range(o.shape[-1])) - set(z)
+
+        return tf.gather(o, list(observed_dim), axis=-1)
+
+    return trieste.objectives.multi_objectives.MultiObjectiveTestProblem(
+        f"{moo_problem.name}-latent-{z}",
+        partial_objective_function,
+        moo_problem.search_space,
+        moo_problem.gen_pareto_optimal_points,  # XXX: this is wrong.
     )
-
-    def noisey_f(X):
-        y = f(X)
-        noise = mvn.sample(len(y))
-
-        assert y.shape == noise.shape
-        return y + noise
-
-    return trieste.objectives.utils.mk_observer(noisey_f)
 
 
 def generate_pareto_optimal_points(n: int, objective, space: trieste.space.SearchSpace):
@@ -238,7 +280,7 @@ class TriesteBO(interaction_loops.Agent):
 
         except tf.errors.InvalidArgumentError as e:
             print(
-                "NOTE: `TriesteBO.pick_query` failed to fit model, returning random sample.",
+                "`TriesteBO.pick_query` failed to fit model, returning random sample.",
                 e,
             )
             query_stats["optimization_fails"] += 1
@@ -249,7 +291,7 @@ class TriesteBO(interaction_loops.Agent):
             query = optimize_trieste_acqf(self.acqf, data_sca, model, self.search_space)
         except trieste.acquisition.optimizer.FailedOptimizationError as e:
             print(
-                "NOTE: `TriesteBO.pick_query` failed to optimize, returning random sample.",
+                "`TriesteBO.pick_query` failed to optimize, returning random sample.",
                 e,
             )
             query_stats["optimization_fails"] += 1
@@ -266,7 +308,7 @@ class TriesteBO(interaction_loops.Agent):
             query_stats["map"] = {"x": np.array(arg_map), "y": np.array(map_mean)}
 
         except trieste.acquisition.optimizer.FailedOptimizationError as e:
-            print("NOTE: `CompositeBO.pick_query` failed to find MAP.", e)
+            print("`CompositeBO.pick_query` failed to find MAP.", e)
             query_stats["optimization_fails"] += 1
 
         query_stats["observation_noise"] = np.array(
@@ -276,8 +318,8 @@ class TriesteBO(interaction_loops.Agent):
         return query, query_stats
 
     def observe(self, query, feedback, evaluation) -> None:
-        del query, evaluation
-        self.data = self.data + feedback["cost"]
+        del evaluation
+        self.data += trieste.data.Dataset(query, feedback["y"])
 
 
 class CompositeBO(interaction_loops.Agent):
@@ -316,7 +358,7 @@ class CompositeBO(interaction_loops.Agent):
 
         except tf.errors.InvalidArgumentError as e:
             print(
-                "NOTE: `CompositeBO.pick_query` failed to fit model, returning random sample.",
+                "`CompositeBO.pick_query` failed to fit model, returning random sample.",
                 e,
             )
             query_stats["optimization_fails"] += 1
@@ -329,7 +371,7 @@ class CompositeBO(interaction_loops.Agent):
             )
         except trieste.acquisition.optimizer.FailedOptimizationError as e:
             print(
-                "NOTE: `CompositeBO.pick_query` failed to optimize, returning random sample.",
+                "`CompositeBO.pick_query` failed to optimize, returning random sample.",
                 e,
             )
             query_stats["optimization_fails"] += 1
@@ -343,7 +385,7 @@ class CompositeBO(interaction_loops.Agent):
 
             query_stats["map"] = {"x": np.array(arg_map), "y": np.array(map_mean)}
         except trieste.acquisition.optimizer.FailedOptimizationError as e:
-            print("NOTE: `CompositeBO.pick_query` failed to find MAP.", e)
+            print("`CompositeBO.pick_query` failed to find MAP.", e)
             query_stats["optimization_fails"] += 1
 
         query_stats["observation_noise"] = np.array(model.get_observation_noise())
@@ -351,12 +393,15 @@ class CompositeBO(interaction_loops.Agent):
         return query, query_stats
 
     def observe(self, query, feedback, evaluation) -> None:
-        del query, evaluation
-        self.data = self.data + feedback["objectives"]
+        del evaluation
+        self.data += trieste.data.Dataset(query, feedback["o"])
 
 
 class UtilityBO(interaction_loops.Agent):
-    """Multi-objective optimization agent that *knows* the scalarization weights."""
+    """Multi-objective optimization agent that *knows* the objective functions.
+
+    This BO agent does *not* know the utility weights and, hence, tracks a posterior over those.
+    """
 
     def __init__(
         self,
@@ -379,7 +424,7 @@ class UtilityBO(interaction_loops.Agent):
         """
         self.objectives = objectives
         self.data_objectives = data_objectives
-        self.data_cost = data_cost
+        self.data_y = data_cost
         self.step = -1
         self.acqf = create_trieste_acqf(
             acqf, self.objectives.search_space, acqf_options
@@ -393,7 +438,7 @@ class UtilityBO(interaction_loops.Agent):
         # Create the model (or return random sample if fails).
         try:
             model = posteriors.UtilityDistribution(
-                self.data_cost, self.objectives.objective
+                self.data_y, self.objectives.objective
             )
 
             # Report weight distribution.
@@ -404,7 +449,7 @@ class UtilityBO(interaction_loops.Agent):
 
         except (tf.errors.InvalidArgumentError, ValueError) as e:
             print(
-                "NOTE: `UtilityBO.pick_query` failed to fit model, returning random sample.",
+                "`UtilityBO.pick_query` failed to fit model, returning random sample.",
                 e,
             )
             query_stats["optimization_fails"] += 1
@@ -413,7 +458,7 @@ class UtilityBO(interaction_loops.Agent):
         # For acquisition functions which may use existing data,
         # `acqf_data` is x -> y data for reference.
         acqf_data = trieste.data.Dataset(
-            self.data_objectives.query_points, self.data_cost.observations
+            self.data_objectives.query_points, self.data_y.observations
         )
 
         # Pick query given model.
@@ -423,7 +468,7 @@ class UtilityBO(interaction_loops.Agent):
             )
         except trieste.acquisition.optimizer.FailedOptimizationError as e:
             print(
-                "NOTE: `CompositeBO.pick_query` failed to optimize, returning random sample.",
+                "`CompositeBO.pick_query` failed to optimize, returning random sample.",
                 e,
             )
             query_stats["optimization_fails"] += 1
@@ -440,7 +485,7 @@ class UtilityBO(interaction_loops.Agent):
 
             query_stats["map"] = {"x": np.array(arg_map), "y": np.array(map_mean)}
         except trieste.acquisition.optimizer.FailedOptimizationError as e:
-            print("NOTE: `CompositeBO.pick_query` failed to find MAP.", e)
+            print("`CompositeBO.pick_query` failed to find MAP.", e)
             query_stats["optimization_fails"] += 1
 
         query_stats["observation_noise"] = np.array(model.get_observation_noise())
@@ -448,8 +493,7 @@ class UtilityBO(interaction_loops.Agent):
         return query, query_stats
 
     def observe(self, query, feedback, evaluation) -> None:
-        del query, evaluation
-        self.data_objectives = self.data_objectives + feedback["objectives"]
-        self.data_cost = self.data_cost + trieste.data.Dataset(
-            feedback["objectives"].observations, feedback["cost"].observations
-        )
+        del evaluation
+
+        self.data_objectives += trieste.data.Dataset(query, feedback["o"])
+        self.data_y += trieste.data.Dataset(feedback["o"], feedback["y"])

@@ -26,7 +26,6 @@ class Evaluation(Protocol):
 
 class User(Protocol):
     def pick_action(self, query) -> tuple[Any, dict[str, Any]]: ...
-
     def observe(self, action, feedback, evaluation) -> None: ...
 
 

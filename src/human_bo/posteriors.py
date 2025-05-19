@@ -53,6 +53,109 @@ class WeightedParticles:
         return tf.gather(self.particles, self.distr.mode())
 
 
+class MultIndependentGPs(trieste.models.interfaces.SupportsGetObservationNoise):
+    """Multi output GP, where each output is an independent GP."""
+
+    def __init__(
+        self, data: trieste.data.Dataset, search_space: trieste.space.SearchSpace
+    ):
+        """Creates `k` independent GPs, assuming data set has output dimension `k`"""
+
+        self.models: list[trieste.models.interfaces.SupportsGetObservationNoise] = []
+        self.output_dim = data.observations.shape[-1]
+
+        assert isinstance(self.output_dim, int) and self.output_dim > 1
+
+        # Our models are trained on standardized objectives.
+        # However, when we `predict` and `sample` we return re-scaled output.
+        # For this, we need to save the mean and standard deviation.
+        self.means = []
+        self.stds = []
+
+        for i in range(self.output_dim):
+            single_objective = tf.gather(data.observations, [i], axis=1)
+
+            # Standardize the objectives, and store the statistics to scale back later.
+            sca, mean, std = utils.normalize(single_objective)
+            single_data = trieste.data.Dataset(data.query_points, sca)
+
+            self.means.append(mean)
+            self.stds.append(std)
+
+            self.models.append(create_gp(single_data, search_space))
+
+    def sample(
+        self, query_points: trieste.types.TensorType, num_samples: int
+    ) -> trieste.types.TensorType:
+        """Abstract method of `ProbabilisticModel`."""
+        b, n = query_points.shape[:-2], query_points.shape[-2]
+        assert isinstance(b, tf.TensorShape) and isinstance(n, int)
+
+        # Here we sample objectives from our models.
+        # Note we immediately scale them back using the stored means and standard deviation.
+        list_of_samples = [
+            model.sample(query_points, num_samples) * std + mean
+            for mean, std, model in zip(self.means, self.stds, self.models)
+        ]
+
+        # If this is false, I give up on life.
+        # But I rather go that way, then have a bug caused by the following being wrong.
+        assert len(list_of_samples) == self.output_dim
+        for samples in list_of_samples:
+            assert samples.shape == tf.TensorShape([*b, num_samples, n, 1])
+
+        samples = tf.reshape(
+            tf.concat(list_of_samples, axis=-1), (*b, num_samples, -1, self.output_dim)
+        )
+        assert samples.shape[-2] == tf.TensorShape(
+            [*b, num_samples, n, self.output_dim]
+        )
+
+        return samples
+
+    def predict(
+        self, query_points: trieste.types.TensorType
+    ) -> tuple[trieste.types.TensorType, trieste.types.TensorType]:
+        """Abstract method of `ProbabilisticModel`."""
+
+        b = query_points.shape[:-1]
+        assert isinstance(b, tf.TensorShape)
+
+        means_sca, vars_sca = zip(*[m.predict(query_points) for m in self.models])
+
+        # We de-normalize our objectives.
+        # The actual predicted mean is `o * std + mean`.
+        # Its variance is simply the multiplication with the previous: `v * sqrt(std)`.
+        means = [
+            mean_sca * std + m
+            for mean_sca, std, m in zip(means_sca, self.stds, self.means)
+        ]
+        vars = [var_sca * tf.pow(std, 2) for var_sca, std in zip(vars_sca, self.stds)]
+
+        m = tf.reshape(tf.concat(means, -1), (*b, self.output_dim))
+        v = tf.reshape(tf.concat(vars, -1), (*b, self.output_dim))
+
+        return m, v
+
+    def log(self, dataset: trieste.data.Dataset | None = None) -> None:
+        """Abstract method of `ProbabilisticModel`, unused in this code base."""
+        del dataset
+
+    def get_observation_noise(self) -> trieste.types.TensorType:
+        """Abstract method of `SupportsGetObservationNoise`.
+
+        Return the variance of observation noise.
+        """
+        # We simply ask the observation noise of our individual GPs.
+        # Note that we do re-scale it by multiplying with their variance.
+        o_noise = [
+            m.get_observation_noise() * tf.pow(s, 2)
+            for m, s in zip(self.models, self.stds)
+        ]
+
+        return tf.squeeze(tf.concat(o_noise, -1))
+
+
 class CompositeGP(trieste.models.interfaces.SupportsGetObservationNoise):
     """Note `SupportsGetObservationNoise` is a `ProbabilisticModel`."""
 
@@ -72,26 +175,7 @@ class CompositeGP(trieste.models.interfaces.SupportsGetObservationNoise):
             scalarization_weights, tf.float64
         )
         self.o_dim = len(scalarization_weights)
-
-        self.models: list[trieste.models.interfaces.SupportsGetObservationNoise] = []
-
-        # Our models are trained on standardized objectives.
-        # However, when we `predict` and `sample` we return re-scaled output.
-        # For this, we need to save the mean and standard deviation.
-        self.o_means = []
-        self.o_stds = []
-
-        for i in range(self.o_dim):
-            single_objective = tf.gather(data.observations, [i], axis=1)
-
-            # Standardize the objectives, and store the statistics to scale back later.
-            sca, mean, std = utils.normalize(single_objective)
-            single_data = trieste.data.Dataset(data.query_points, sca)
-
-            self.o_means.append(mean)
-            self.o_stds.append(std)
-
-            self.models.append(create_gp(single_data, search_space))
+        self.models = MultIndependentGPs(data, search_space)
 
     def sample(
         self, query_points: trieste.types.TensorType, num_samples: int
@@ -102,25 +186,13 @@ class CompositeGP(trieste.models.interfaces.SupportsGetObservationNoise):
 
         # Here we sample objectives from our models.
         # Note we immediately scale them back using the stored means and standard deviation.
-        obj_samples = [
-            model.sample(query_points, num_samples) * self.o_stds[o] + self.o_means[o]
-            for o, model in enumerate(self.models)
-        ]
-
-        # If this is false, I give up on life.
-        # But I rather go that way, then have a bug caused by the following being wrong.
-        assert len(obj_samples) == len(self.scalarization_weights)
-        for samples in obj_samples:
-            assert samples.shape == tf.TensorShape([*b, num_samples, n, 1])
-
-        objs = tf.reshape(
-            tf.concat(obj_samples, axis=-1), (-1, len(self.scalarization_weights))
-        )
-        assert objs.shape == tf.TensorShape([*b, num_samples * n, self.o_dim])
+        obj_samples = self.models.sample(query_points, num_samples)
+        assert obj_samples.shape == tf.TensorShape((*b, num_samples, n, self.o_dim))
 
         # XXX: We assume utility function has no noise.
-        cost = moo.scalarize_objectives(objs, self.scalarization_weights)
-        assert cost.shape == tf.TensorShape([*b, num_samples * n, 1])
+        cost = moo.scalarize_objectives(
+            tf.reshape(obj_samples, (-1, self.o_dim)), self.scalarization_weights
+        )
 
         return tf.reshape(cost, (*b, num_samples, n, 1))
 
@@ -132,15 +204,10 @@ class CompositeGP(trieste.models.interfaces.SupportsGetObservationNoise):
         b = query_points.shape[:-1]
         assert isinstance(b, tf.TensorShape)
 
-        o_means_sca, o_vars_sca = zip(*[m.predict(query_points) for m in self.models])
+        o_m, o_v = self.models.predict(query_points)
 
-        # Here we de-normalize our objectives.
-        # The actual predicted mean is `o * std + mean`.
-        # Its variance is simply the multiplication with the previous: `v * sqrt(std)`.
-        o_means = [
-            o * std + m for o, std, m in zip(o_means_sca, self.o_stds, self.o_means)
-        ]
-        o_vars = [v * tf.pow(std, 2) for v, std in zip(o_vars_sca, self.o_stds)]
+        assert o_m.shape == tf.TensorShape((*b, self.o_dim))
+        assert o_v.shape == tf.TensorShape((*b, self.o_dim))
 
         # Here we transform our predicted means and variance.
         # In particular, we want to predict the cost's mean and variance:
@@ -155,11 +222,12 @@ class CompositeGP(trieste.models.interfaces.SupportsGetObservationNoise):
         # As in: the mean is sum(w_i * m_i) and the variance is sum(w_i ** 2 * s_i)
         # We implement this with tensor operations.
         m = tf.matmul(
-            tf.concat(o_means, axis=-1), tf.reshape(self.scalarization_weights, (-1, 1))
+            tf.reshape(o_m, (-1, self.o_dim)),
+            tf.reshape(self.scalarization_weights, (-1, 1)),
         )
         # XXX: we assume here that the utility function is noise free.
         v = tf.matmul(
-            tf.concat(o_vars, axis=-1),
+            tf.reshape(o_v, (-1, self.o_dim)),
             tf.reshape(tf.pow(self.scalarization_weights, 2), (-1, 1)),
         )
 
@@ -178,16 +246,14 @@ class CompositeGP(trieste.models.interfaces.SupportsGetObservationNoise):
         :return: The observation noise.
         """
         # Here we combine the observation noise of our individual GPs.
-        # We first grab (unscaled) noise of each objective.
-        o_noise = [
-            m.get_observation_noise() * tf.pow(s, 2)
-            for m, s in zip(self.models, self.o_stds)
-        ]
+        o_noise = self.models.get_observation_noise()
+
+        assert o_noise.shape == tf.TensorShape([self.o_dim])
 
         # And then we take the linear combination.
         # XXX: we assume here that the utility function is noise free.
         combined_noise = tf.matmul(
-            tf.concat(o_noise, axis=-1),
+            tf.reshape(o_noise, (1, -1)),
             tf.reshape(tf.pow(self.scalarization_weights, 2), (-1, 1)),
         )
         assert combined_noise.shape == tf.TensorShape([1, 1])

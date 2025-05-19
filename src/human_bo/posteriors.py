@@ -58,7 +58,8 @@ class LinearPosterior(trieste.models.interfaces.SupportsGetObservationNoise):
 
     def __init__(
         self,
-        data: trieste.data.Dataset,
+        X: tf.Tensor,
+        Y: tf.Tensor,
         observation_noise: float = 0.1,
         n_approx: int = 100,
     ):
@@ -67,13 +68,10 @@ class LinearPosterior(trieste.models.interfaces.SupportsGetObservationNoise):
         :observation_noise: the assume noise of the linear function.
         :n_approx: the number of samples to approximate the distribution with.
         """
-        if tf.math.count_nonzero(data.query_points) == 0:
+        if tf.math.count_nonzero(X) == 0:
             raise ValueError("Cannot initiate `UtilityDistribution` with empty `data`")
 
-        x, y = data.query_points, data.observations
-        assert isinstance(y, tf.Tensor) and isinstance(x, tf.Tensor)
-
-        self.output_dim = x.shape[-1]
+        self.output_dim = X.shape[-1]
         assert isinstance(self.output_dim, int)
 
         self.n_ensemble = 20**self.output_dim
@@ -90,7 +88,7 @@ class LinearPosterior(trieste.models.interfaces.SupportsGetObservationNoise):
             tf.float64,
         )
         llikelihoods = [
-            moo.log_likelihood_linear_utility(w, x, y, self.observation_noise)
+            moo.log_likelihood_linear_utility(w, X, Y, self.observation_noise)
             for w in weights
         ]
         self.weighted_particles = WeightedParticles(weights, llikelihoods)
@@ -122,7 +120,7 @@ class LinearPosterior(trieste.models.interfaces.SupportsGetObservationNoise):
         assert samples.shape == tf.TensorShape([*b, self.n_approx, n, 1])
 
         mean = tf.reduce_mean(samples, axis=len(b))
-        var = tf.math.reduce_variance(samples, len(b))
+        var = tf.math.reduce_variance(samples, axis=len(b))
 
         assert mean.shape == tf.TensorShape([*b, n, 1])
         assert var.shape == tf.TensorShape([*b, n, 1])
@@ -147,12 +145,12 @@ class MultIndependentGPs(trieste.models.interfaces.SupportsGetObservationNoise):
     """Multi output GP, where each output is an independent GP."""
 
     def __init__(
-        self, data: trieste.data.Dataset, search_space: trieste.space.SearchSpace
+        self, X: tf.Tensor, Y: tf.Tensor, search_space: trieste.space.SearchSpace
     ):
         """Creates `k` independent GPs, assuming data set has output dimension `k`"""
 
         self.models: list[trieste.models.interfaces.SupportsGetObservationNoise] = []
-        self.output_dim = data.observations.shape[-1]
+        self.output_dim = Y.shape[-1]
 
         assert isinstance(self.output_dim, int) and self.output_dim > 1
 
@@ -163,11 +161,11 @@ class MultIndependentGPs(trieste.models.interfaces.SupportsGetObservationNoise):
         self.stds = []
 
         for i in range(self.output_dim):
-            single_objective = tf.gather(data.observations, [i], axis=1)
+            single_objective = tf.gather(Y, [i], axis=1)
 
             # Standardize the objectives, and store the statistics to scale back later.
             sca, mean, std = utils.normalize(single_objective)
-            single_data = trieste.data.Dataset(data.query_points, sca)
+            single_data = trieste.data.Dataset(X, sca)
 
             self.means.append(mean)
             self.stds.append(std)
@@ -267,7 +265,13 @@ class CompositeGP(trieste.models.interfaces.SupportsGetObservationNoise):
             scalarization_weights, tf.float64
         )
         self.o_dim = len(scalarization_weights)
-        self.models = MultIndependentGPs(data, search_space)
+
+        assert isinstance(data.query_points, tf.Tensor)
+        assert isinstance(data.observations, tf.Tensor)
+
+        self.models = MultIndependentGPs(
+            data.query_points, data.observations, search_space
+        )
 
     def sample(
         self, query_points: trieste.types.TensorType, num_samples: int
@@ -353,13 +357,10 @@ class CompositeGP(trieste.models.interfaces.SupportsGetObservationNoise):
         return tf.squeeze(combined_noise)
 
 
-# TODO: rename to reflect it knows objectives.
 class UtilityDistribution(trieste.models.interfaces.SupportsGetObservationNoise):
     """Note `SupportsGetObservationNoise` is a `ProbabilisticModel`."""
 
-    def __init__(
-        self, data: trieste.data.Dataset, objectives, utility_noise: float = 0.1
-    ):
+    def __init__(self, data: trieste.data.Dataset, objectives):
         """A distribution over the utility given known objective functions.
 
         This class implements the `Trieste` model interface(s) to represent
@@ -373,7 +374,10 @@ class UtilityDistribution(trieste.models.interfaces.SupportsGetObservationNoise)
             raise ValueError("Cannot initiate `UtilityDistribution` with empty `data`")
 
         self.objectives = objectives
-        self.weight_posterior = LinearPosterior(data, utility_noise, 100)
+
+        assert isinstance(data.query_points, tf.Tensor)
+        assert isinstance(data.observations, tf.Tensor)
+        self.weight_posterior = LinearPosterior(data.query_points, data.observations)
 
     def sample(
         self, query_points: trieste.types.TensorType, num_samples: int
@@ -409,3 +413,74 @@ class UtilityDistribution(trieste.models.interfaces.SupportsGetObservationNoise)
         :return: The observation noise.
         """
         return self.weight_posterior.observation_noise
+
+
+class MOOPosterior(trieste.models.interfaces.SupportsGetObservationNoise):
+    """Note `SupportsGetObservationNoise` is a `ProbabilisticModel`."""
+
+    def __init__(
+        self,
+        X: tf.Tensor,
+        O: tf.Tensor,
+        Y: tf.Tensor,
+        search_space: trieste.space.SearchSpace,
+        n_predict_samples: int = 100,
+    ):
+        """Creates a joint distribution from posterior over objectives and utility.
+
+        :n_predict_samples: number of samples to approximate mean and variance.
+        """
+        self.n_predict_samples = n_predict_samples
+
+        self.weight_posterior = LinearPosterior(O, Y)
+        self.objectives_posterior = MultIndependentGPs(X, O, search_space)
+
+    def sample(
+        self, query_points: trieste.types.TensorType, num_samples: int
+    ) -> trieste.types.TensorType:
+        """Abstract method of `ProbabilisticModel`."""
+        b, n = query_points.shape[:-2], query_points.shape[-2]
+        assert isinstance(b, tf.TensorShape) and isinstance(n, int)
+
+        # Sample `num_samples` objectives and weights,
+        o_samples = self.objectives_posterior.sample(query_points, num_samples)
+        weight_samples = self.weight_posterior.sample(o_samples, 1)
+
+        assert o_samples.shape == tf.TensorShape([*b, num_samples, n, -1])
+        assert weight_samples.shape == tf.TensorShape([*b, num_samples, n, -1])
+
+        samples = tf.matmul(o_samples, weight_samples, transpose_b=True)
+        assert samples.shape == tf.TensorShape([*b, num_samples, n])
+
+        return tf.expand_dims(samples, -1)
+
+    def predict(
+        self, query_points: trieste.types.TensorType
+    ) -> tuple[trieste.types.TensorType, trieste.types.TensorType]:
+        """Abstract method of `ProbabilisticModel`."""
+        b, n = query_points.shape[:-2], query_points.shape[-2]
+        assert isinstance(b, tf.TensorShape) and isinstance(n, int)
+
+        predictions = self.sample(query_points, self.n_predict_samples)
+        assert predictions.shape == tf.TensorShape([*b, self.n_predict_samples, n, 1])
+
+        mean = tf.reduce_mean(predictions, axis=len(b))
+        variance = tf.math.reduce_variance(predictions, axis=len(b))
+
+        assert mean.shape == tf.TensorShape([*b, n, 1])
+        assert variance.shape == tf.TensorShape([*b, n, 1])
+
+        return mean, variance
+
+    def log(self, dataset: trieste.data.Dataset | None = None) -> None:
+        """Abstract method of `ProbabilisticModel`, unused in this code base."""
+        del dataset
+
+    def get_observation_noise(self) -> trieste.types.TensorType:
+        """Abstract method of `SupportsGetObservationNoise`.
+
+        Return the variance of observation noise.
+
+        :return: The observation noise.
+        """
+        # TODO: implement.

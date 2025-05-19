@@ -10,8 +10,8 @@ from typing import Any
 import numpy as np
 import tensorflow as tf
 import trieste
-import wandb
 
+import wandb
 from human_bo import conf, interaction_loops, moo, reporting, trieste_api, utils
 
 
@@ -121,6 +121,9 @@ def main():
             exp_params["acqf"],
             acqf_options=conf.get_entries_with_tag(exp_params, "acqf-option"),
         )
+
+    elif exp_params["type_agent"] == "moo":
+        raise NotImplementedError()
 
     elif exp_params["type_agent"] == "random":
         ai = trieste_api.RandomAgent(objectives_problem.search_space)

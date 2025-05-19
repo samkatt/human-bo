@@ -4,8 +4,8 @@ import random
 from collections.abc import Callable
 from typing import Any, TypeVar
 
-import tensorflow_probability as tfp
 import tensorflow as tf
+import tensorflow_probability as tfp
 
 CONFIG: dict[str, dict[str, Any]] = {
     "scalarization_weights": {
@@ -37,7 +37,7 @@ CONFIG: dict[str, dict[str, Any]] = {
         "help": "The type of agent to use.",
         "tags": {"experiment-parameter"},
         "parser-arguments": {
-            "choices": {"random", "bo", "composite", "utility-learner"},
+            "choices": {"random", "bo", "composite", "utility-learner", "moo"},
             "required": True,
         },
     },

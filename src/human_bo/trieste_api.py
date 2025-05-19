@@ -255,6 +255,7 @@ class BO(interaction_loops.Agent):
     ):
         self.data = data
         self.search_space = search_space
+        # TODO: remove?
         self.step = -1
         self.acqf = create_acqf(acqf, self.search_space, acqf_options)
         self.mean_acqf = create_acqf("mean", self.search_space, {})
@@ -334,6 +335,7 @@ class CompositeBO(interaction_loops.Agent):
         self.weights = composition_weights
         self.data = data
         self.search_space = search_space
+        # TODO: remove?
         self.step = -1
         self.acqf = create_acqf(acqf, self.search_space, acqf_options)
         self.mean_acqf = create_acqf("mean", self.search_space, {})
@@ -389,6 +391,7 @@ class UtilityBO(interaction_loops.Agent):
     This BO agent does *not* know the utility weights and, hence, tracks a posterior over those.
     """
 
+    # TODO: remove `data_objectives` (perhaps give queries instead).
     def __init__(
         self,
         objectives: trieste.objectives.multi_objectives.MultiObjectiveTestProblem,
@@ -411,6 +414,7 @@ class UtilityBO(interaction_loops.Agent):
         self.objectives = objectives
         self.data_objectives = data_objectives
         self.data_y = data_cost
+        # TODO: remove?
         self.step = -1
         self.acqf = create_acqf(acqf, self.objectives.search_space, acqf_options)
         self.mean_acqf = create_acqf("mean", self.objectives.search_space, {})
@@ -426,10 +430,12 @@ class UtilityBO(interaction_loops.Agent):
             )
 
             # Report weight distribution.
-            query_stats["weight_posterior"] = model.weighted_particles.sample(
-                n=100
-            ).numpy()
-            query_stats["weight_map"] = model.weighted_particles.map().numpy()
+            query_stats["weight_posterior"] = (
+                model.weight_posterior.weighted_particles.sample(n=100).numpy()
+            )
+            query_stats["weight_map"] = (
+                model.weight_posterior.weighted_particles.map().numpy()
+            )
 
         except (tf.errors.InvalidArgumentError, ValueError) as e:
             print(

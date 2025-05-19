@@ -53,6 +53,96 @@ class WeightedParticles:
         return tf.gather(self.particles, self.distr.mode())
 
 
+class LinearPosterior(trieste.models.interfaces.SupportsGetObservationNoise):
+    """A Monte-Carlo approximation of a Trieste `ProbabilisticModel` of linear weights"""
+
+    def __init__(
+        self,
+        data: trieste.data.Dataset,
+        observation_noise: float = 0.1,
+        n_approx: int = 100,
+    ):
+        """Creates `WeightedParticles` model, assuming linear mapping of `data`.
+
+        :observation_noise: the assume noise of the linear function.
+        :n_approx: the number of samples to approximate the distribution with.
+        """
+        if tf.math.count_nonzero(data.query_points) == 0:
+            raise ValueError("Cannot initiate `UtilityDistribution` with empty `data`")
+
+        x, y = data.query_points, data.observations
+        assert isinstance(y, tf.Tensor) and isinstance(x, tf.Tensor)
+
+        self.output_dim = x.shape[-1]
+        assert isinstance(self.output_dim, int)
+
+        self.n_ensemble = 20**self.output_dim
+        self.n_approx = n_approx
+        self.observation_noise = tf.convert_to_tensor(observation_noise, tf.float64)
+
+        assert self.n_approx > 0 and self.output_dim > 0 and observation_noise >= 0
+
+        weights = tf.convert_to_tensor(
+            [
+                moo.sample_scalarization_weights(self.output_dim)
+                for _ in range(self.n_ensemble)
+            ],
+            tf.float64,
+        )
+        llikelihoods = [
+            moo.log_likelihood_linear_utility(w, x, y, self.observation_noise)
+            for w in weights
+        ]
+        self.weighted_particles = WeightedParticles(weights, llikelihoods)
+
+    def sample(
+        self, query_points: trieste.types.TensorType, num_samples: int
+    ) -> trieste.types.TensorType:
+        """Abstract method of `ProbabilisticModel`."""
+        b, n = query_points.shape[:-2], query_points.shape[-2]
+        assert isinstance(b, tf.TensorShape) and isinstance(n, int)
+
+        x = tf.reshape(query_points, (-1, self.output_dim))
+
+        weights = self.weighted_particles.sample(num_samples)
+        samples = tf.transpose(tf.matmul(x, weights, transpose_b=True))
+
+        assert samples.shape == tf.TensorShape([*b, num_samples, n])
+
+        return tf.expand_dims(samples, axis=-1)
+
+    def predict(
+        self, query_points: trieste.types.TensorType
+    ) -> tuple[trieste.types.TensorType, trieste.types.TensorType]:
+        """Abstract method of `ProbabilisticModel`."""
+        b, n = query_points.shape[:-2], query_points.shape[-2]
+        assert isinstance(b, tf.TensorShape)
+
+        samples = self.sample(query_points, self.n_approx)
+        assert samples.shape == tf.TensorShape([*b, self.n_approx, n, 1])
+
+        mean = tf.reduce_mean(samples, axis=len(b))
+        var = tf.math.reduce_variance(samples, len(b))
+
+        assert mean.shape == tf.TensorShape([*b, n, 1])
+        assert var.shape == tf.TensorShape([*b, n, 1])
+
+        return mean, var
+
+    def log(self, dataset: trieste.data.Dataset | None = None) -> None:
+        """Abstract method of `ProbabilisticModel`, unused in this code base."""
+        del dataset
+
+    def get_observation_noise(self) -> trieste.types.TensorType:
+        """Abstract method of `SupportsGetObservationNoise`.
+
+        Return the variance of observation noise.
+
+        :return: The observation noise.
+        """
+        return self.observation_noise
+
+
 class MultIndependentGPs(trieste.models.interfaces.SupportsGetObservationNoise):
     """Multi output GP, where each output is an independent GP."""
 
@@ -126,14 +216,16 @@ class MultIndependentGPs(trieste.models.interfaces.SupportsGetObservationNoise):
         # We de-normalize our objectives.
         # The actual predicted mean is `o * std + mean`.
         # Its variance is simply the multiplication with the previous: `v * sqrt(std)`.
-        means = [
+        mean = [
             mean_sca * std + m
             for mean_sca, std, m in zip(means_sca, self.stds, self.means)
         ]
-        vars = [var_sca * tf.pow(std, 2) for var_sca, std in zip(vars_sca, self.stds)]
+        variance = [
+            var_sca * tf.pow(std, 2) for var_sca, std in zip(vars_sca, self.stds)
+        ]
 
-        m = tf.reshape(tf.concat(means, -1), (*b, self.output_dim))
-        v = tf.reshape(tf.concat(vars, -1), (*b, self.output_dim))
+        m = tf.reshape(tf.concat(mean, -1), (*b, self.output_dim))
+        v = tf.reshape(tf.concat(variance, -1), (*b, self.output_dim))
 
         return m, v
 
@@ -261,6 +353,7 @@ class CompositeGP(trieste.models.interfaces.SupportsGetObservationNoise):
         return tf.squeeze(combined_noise)
 
 
+# TODO: rename to reflect it knows objectives.
 class UtilityDistribution(trieste.models.interfaces.SupportsGetObservationNoise):
     """Note `SupportsGetObservationNoise` is a `ProbabilisticModel`."""
 
@@ -279,29 +372,8 @@ class UtilityDistribution(trieste.models.interfaces.SupportsGetObservationNoise)
         if tf.math.count_nonzero(data.query_points) == 0:
             raise ValueError("Cannot initiate `UtilityDistribution` with empty `data`")
 
-        o = data.query_points
-        u = data.observations
-        n, o_dim = o.shape
-
-        assert isinstance(o, tf.Tensor) and isinstance(u, tf.Tensor)
-        assert isinstance(n, int) and isinstance(o_dim, int)
-
-        self.utility_noise = tf.convert_to_tensor(utility_noise, tf.float64)
-        self.o_dim = o_dim
-
         self.objectives = objectives
-        self.n_particles = 20**o_dim  # number of weight samples.
-        self.n_predictions = 100  # number of samples used to `self.predict`.
-
-        weights = tf.convert_to_tensor(
-            [moo.sample_scalarization_weights(o_dim) for _ in range(self.n_particles)],
-            tf.float64,
-        )
-        llikelihoods = [
-            moo.log_likelihood_linear_utility(w, o, u, self.utility_noise)
-            for w in weights
-        ]
-        self.weighted_particles = WeightedParticles(weights, llikelihoods)
+        self.weight_posterior = LinearPosterior(data, utility_noise, 100)
 
     def sample(
         self, query_points: trieste.types.TensorType, num_samples: int
@@ -311,30 +383,19 @@ class UtilityDistribution(trieste.models.interfaces.SupportsGetObservationNoise)
         assert isinstance(b, tf.TensorShape) and isinstance(n, int)
 
         o = self.objectives(query_points)
-        weights = self.weighted_particles.sample(num_samples)
+        samples = self.weight_posterior.sample(o, num_samples)
 
-        samples = tf.transpose(tf.matmul(o, weights, transpose_b=True))
-        assert samples.shape == tf.TensorShape([*b, num_samples, n])
-
-        return tf.expand_dims(samples, axis=-1)
+        assert samples.shape == tf.TensorShape([*b, num_samples, n, 1])
+        return samples
 
     def predict(
         self, query_points: trieste.types.TensorType
     ) -> tuple[trieste.types.TensorType, trieste.types.TensorType]:
         """Abstract method of `ProbabilisticModel`."""
-        b, n = query_points.shape[:-2], query_points.shape[-2]
-        assert isinstance(b, tf.TensorShape)
+        o = self.objectives(query_points)
+        predictions = self.weight_posterior.predict(o)
 
-        samples = self.sample(query_points, self.n_predictions)
-        assert samples.shape == tf.TensorShape([*b, self.n_predictions, n, 1])
-
-        mean = tf.reduce_mean(samples, axis=len(b))
-        var = tf.math.reduce_variance(samples, len(b))
-
-        assert mean.shape == tf.TensorShape([*b, n, 1])
-        assert var.shape == tf.TensorShape([*b, n, 1])
-
-        return mean, var
+        return predictions
 
     def log(self, dataset: trieste.data.Dataset | None = None) -> None:
         """Abstract method of `ProbabilisticModel`, unused in this code base."""
@@ -347,4 +408,4 @@ class UtilityDistribution(trieste.models.interfaces.SupportsGetObservationNoise)
 
         :return: The observation noise.
         """
-        return self.utility_noise
+        return self.weight_posterior.observation_noise

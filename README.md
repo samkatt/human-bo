@@ -73,3 +73,7 @@ But I tend to just run `scripts/static_analysis.sh` and check the output.
 - [ ] Debug (visualizing) map. Seems to be stuck (e.g., in results on `python scripts/run_moo.py -t utility-learner -p BraninCurrin -a EI -f results -z 1`).
 - [ ] Fix all tensorflow warnings.
 - [ ] Remove references to `cost`.
+- [ ] Check for consistency with:
+    - [ ] Creation of tensorshapes.
+    - [ ] Checking of tensorshapes.
+    - [ ] Reshaping tensors.

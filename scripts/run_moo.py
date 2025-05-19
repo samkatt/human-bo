@@ -89,6 +89,7 @@ def main():
 
     # Create agent with (potentially zero) initial data points.
     x_init = objectives_problem.search_space.sample(exp_params["n_init"])
+    assert isinstance(x_init, tf.Tensor)
     f_init, _ = problem.give_feedback(x_init)
 
     if exp_params["type_agent"] == "bo":
@@ -123,7 +124,18 @@ def main():
         )
 
     elif exp_params["type_agent"] == "moo":
-        raise NotImplementedError()
+        partial_objective_function = trieste_api.create_partial_moo_problem(
+            objectives_problem, o_dim + z_dim, z
+        )
+
+        ai = trieste_api.MOO(
+            x_init,
+            f_init["o"],
+            f_init["y"],
+            partial_objective_function.search_space,
+            exp_params["acqf"],
+            acqf_options=conf.get_entries_with_tag(exp_params, "acqf-option"),
+        )
 
     elif exp_params["type_agent"] == "random":
         ai = trieste_api.RandomAgent(objectives_problem.search_space)

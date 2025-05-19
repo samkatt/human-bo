@@ -255,14 +255,10 @@ class BO(interaction_loops.Agent):
     ):
         self.data = data
         self.search_space = search_space
-        # TODO: remove?
-        self.step = -1
         self.acqf = create_acqf(acqf, self.search_space, acqf_options)
         self.mean_acqf = create_acqf("mean", self.search_space, {})
 
     def pick_query(self) -> tuple[Any, dict[str, Any]]:
-        self.step += 1
-
         query_stats: dict[str, Any] = {"optimization_fails": 0}
 
         # Create the model (or return random sample if fails).
@@ -335,13 +331,11 @@ class CompositeBO(interaction_loops.Agent):
         self.weights = composition_weights
         self.data = data
         self.search_space = search_space
-        # TODO: remove?
-        self.step = -1
+
         self.acqf = create_acqf(acqf, self.search_space, acqf_options)
         self.mean_acqf = create_acqf("mean", self.search_space, {})
 
     def pick_query(self) -> tuple[Any, dict[str, Any]]:
-        self.step += 1
         query_stats: dict[str, Any] = {"optimization_fails": 0}
 
         # Create the model (or return random sample if fails).
@@ -414,13 +408,10 @@ class UtilityBO(interaction_loops.Agent):
         self.objectives = objectives
         self.data_objectives = data_objectives
         self.data_y = data_cost
-        # TODO: remove?
-        self.step = -1
         self.acqf = create_acqf(acqf, self.objectives.search_space, acqf_options)
         self.mean_acqf = create_acqf("mean", self.objectives.search_space, {})
 
     def pick_query(self) -> tuple[Any, dict[str, Any]]:
-        self.step += 1
         query_stats: dict[str, Any] = {"optimization_fails": 0}
 
         # Create the model (or return random sample if fails).
@@ -458,7 +449,7 @@ class UtilityBO(interaction_loops.Agent):
             )
         except trieste.acquisition.optimizer.FailedOptimizationError as e:
             print(
-                "`CompositeBO.pick_query` failed to optimize, returning random sample.",
+                "`UtilityDistribution.pick_query` failed to optimize, returning random sample.",
                 e,
             )
             query_stats["optimization_fails"] += 1
@@ -475,7 +466,7 @@ class UtilityBO(interaction_loops.Agent):
 
             query_stats["map"] = {"x": np.array(arg_map), "y": np.array(map_mean)}
         except trieste.acquisition.optimizer.FailedOptimizationError as e:
-            print("`CompositeBO.pick_query` failed to find MAP.", e)
+            print("`UtilityDistribution.pick_query` failed to find MAP.", e)
             query_stats["optimization_fails"] += 1
 
         query_stats["observation_noise"] = np.array(model.get_observation_noise())
@@ -487,3 +478,99 @@ class UtilityBO(interaction_loops.Agent):
 
         self.data_objectives += trieste.data.Dataset(query, feedback["o"])
         self.data_y += trieste.data.Dataset(feedback["o"], feedback["y"])
+
+
+class MOO(interaction_loops.Agent):
+    """Multi-objective optimization agent that ignores latent objectives."""
+
+    def __init__(
+        self,
+        X: tf.Tensor,
+        O: tf.Tensor,
+        Y: tf.Tensor,
+        search_space: trieste.space.SearchSpace,
+        acqf: str,
+        acqf_options: dict[str, Any],
+        utility_noise: float = 0.1,
+    ):
+        """Initiates a MOO agent with GPs for each objective weight posterior for utility.
+
+        This agent maintains a GP for each objective, bar the latent which is ignored,
+        and a posterior over weights of the (linear) utility function.
+
+        The optimization uses the surrogate models, in combination with weights posterior,
+        to maximize the `acqf`.
+        """
+        self.X = X
+        self.O = O
+        self.Y = Y
+
+        self.search_space = search_space
+        self.o_dim = self.O.shape[-1]
+        self.utility_noise = tf.convert_to_tensor(utility_noise, tf.float64)
+
+        assert isinstance(self.o_dim, int)
+
+        self.n_particles = 20**self.o_dim  # number of weight samples.
+        self.n_predictions = 100  # number of samples used to `self.predict`.
+
+        self.acqf = create_acqf(acqf, self.search_space, acqf_options)
+        self.mean_acqf = create_acqf("mean", self.search_space, {})
+
+    def pick_query(self) -> tuple[Any, dict[str, Any]]:
+        query_stats: dict[str, Any] = {"optimization_fails": 0}
+
+        assert (
+            isinstance(self.X, tf.Tensor)
+            and isinstance(self.O, tf.Tensor)
+            and isinstance(self.Y, tf.Tensor)
+        )
+
+        data = trieste.data.Dataset(self.X, self.Y)
+
+        # Create the model (or return random sample if fails).
+        try:
+            model = posteriors.MOOPosterior(self.X, self.O, self.Y, self.search_space)
+
+        except (tf.errors.InvalidArgumentError, ValueError) as e:
+            print(
+                "`MOO.pick_query` failed to fit model, returning random sample.",
+                e,
+            )
+            query_stats["optimization_fails"] += 1
+            return self.search_space.sample(1), query_stats
+
+        # Pick query given model.
+        try:
+            query = optimize_acqf(
+                self.acqf,
+                data,
+                model,
+                self.search_space,
+            )
+        except trieste.acquisition.optimizer.FailedOptimizationError as e:
+            print(
+                "`MOO.pick_query` failed to optimize, returning random sample.",
+                e,
+            )
+            query_stats["optimization_fails"] += 1
+            query = self.search_space.sample(1)
+
+        try:
+            arg_map = optimize_acqf(self.mean_acqf, data, model, self.search_space)
+            map_mean = model.predict(arg_map)[0]
+
+            query_stats["map"] = {"x": np.array(arg_map), "y": np.array(map_mean)}
+        except trieste.acquisition.optimizer.FailedOptimizationError as e:
+            print("`MOO.pick_query` failed to find MAP.", e)
+            query_stats["optimization_fails"] += 1
+
+        query_stats["observation_noise"] = np.array(model.get_observation_noise())
+
+        return query, query_stats
+
+    def observe(self, query, feedback, evaluation) -> None:
+        del evaluation
+        self.X = tf.concat([self.X, query], 0)
+        self.O = tf.concat([self.O, feedback["o"]], 0)
+        self.Y = tf.concat([self.Y, feedback["y"]], 0)

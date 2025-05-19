@@ -1,5 +1,6 @@
 """Various models and posteriors."""
 
+from math import prod
 from typing import Any
 
 import tensorflow as tf
@@ -103,11 +104,13 @@ class LinearPosterior(trieste.models.interfaces.SupportsGetObservationNoise):
         x = tf.reshape(query_points, (-1, self.output_dim))
 
         weights = self.weighted_particles.sample(num_samples)
-        samples = tf.transpose(tf.matmul(x, weights, transpose_b=True))
+        samples = tf.matmul(x, weights, transpose_b=True)
 
-        assert samples.shape == tf.TensorShape([*b, num_samples, n])
+        assert samples.shape == tf.TensorShape([prod([*b, n]), num_samples])
 
-        return tf.expand_dims(samples, axis=-1)
+        # TODO: make sure this reshaping does assign the correct places.
+
+        return tf.reshape(samples, [*b, num_samples, n, 1])
 
     def predict(
         self, query_points: trieste.types.TensorType
@@ -195,9 +198,7 @@ class MultIndependentGPs(trieste.models.interfaces.SupportsGetObservationNoise):
         samples = tf.reshape(
             tf.concat(list_of_samples, axis=-1), (*b, num_samples, -1, self.output_dim)
         )
-        assert samples.shape[-2] == tf.TensorShape(
-            [*b, num_samples, n, self.output_dim]
-        )
+        assert samples.shape == tf.TensorShape([*b, num_samples, n, self.output_dim])
 
         return samples
 
@@ -430,7 +431,11 @@ class MOOPosterior(trieste.models.interfaces.SupportsGetObservationNoise):
 
         :n_predict_samples: number of samples to approximate mean and variance.
         """
+        o_dim = O.shape[-1]
+        assert isinstance(o_dim, int)
+
         self.n_predict_samples = n_predict_samples
+        self.o_dim = o_dim
 
         self.weight_posterior = LinearPosterior(O, Y)
         self.objectives_posterior = MultIndependentGPs(X, O, search_space)
@@ -444,15 +449,12 @@ class MOOPosterior(trieste.models.interfaces.SupportsGetObservationNoise):
 
         # Sample `num_samples` objectives and weights,
         o_samples = self.objectives_posterior.sample(query_points, num_samples)
-        weight_samples = self.weight_posterior.sample(o_samples, 1)
+        assert o_samples.shape == tf.TensorShape([*b, num_samples, n, self.o_dim])
 
-        assert o_samples.shape == tf.TensorShape([*b, num_samples, n, -1])
-        assert weight_samples.shape == tf.TensorShape([*b, num_samples, n, -1])
+        samples = self.weight_posterior.sample(o_samples, 1)
+        assert samples.shape == tf.TensorShape([*b, num_samples, 1, n, 1])
 
-        samples = tf.matmul(o_samples, weight_samples, transpose_b=True)
-        assert samples.shape == tf.TensorShape([*b, num_samples, n])
-
-        return tf.expand_dims(samples, -1)
+        return tf.reshape(samples, (*b, num_samples, n, 1))
 
     def predict(
         self, query_points: trieste.types.TensorType

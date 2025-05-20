@@ -76,7 +76,7 @@ def create_test_function(
         return trieste.objectives.single_objectives.SingleObjectiveTestProblem(
             name="Zhou",
             objective=lambda x: tf.reshape(
-                -test_functions.zhou(x, tf.experimental.numpy.pi, tf.exp), [-1, 1]
+                -test_functions.zhou(x, tf.experimental.numpy.pi, tf.exp), (-1, 1)
             ),
             search_space=trieste.space.Box([0.0], [1.0]),
             minimizers=tf.convert_to_tensor([[1 / 3], [2 / 3]]),
@@ -86,7 +86,7 @@ def create_test_function(
         return trieste.objectives.single_objectives.SingleObjectiveTestProblem(
             name="Forrester",
             objective=lambda x: tf.reshape(
-                -test_functions.forrester(x, tf.sin), [-1, 1]
+                -test_functions.forrester(x, tf.sin), (-1, 1)
             ),
             search_space=trieste.space.Box([0.0], [1.0]),
             minimizers=tf.convert_to_tensor([[0.7572]]),
@@ -401,9 +401,6 @@ class UtilityBO(interaction_loops.Agent):
 
         The optimization uses this posterior, in combination with `objectives`,
         to maximize the `acqf`.
-
-        - `data_objectives` is supposed to contain `x -> o`.
-        - `data_costs` is supposed to contain `o -> u`, from which we then infer the weights.
         """
         self.X, self.O, self.Y = X, O, Y
         self.objectives = objectives

@@ -453,7 +453,7 @@ def visualize_moo(results):
         exp_params["scalarization_weights"], tf.float64
     )
 
-    def cost_function(o):
+    def U(o):
         return moo.scalarize_objectives(o, scalarization_weights)
 
     dim = exp_params["x_dim"]
@@ -549,7 +549,7 @@ def visualize_moo(results):
     # Objectives plot.
     if ax_o:
         U_o = np.array(
-            cost_function(
+            U(
                 tf.convert_to_tensor(
                     np.stack(O_mesh, axis=-1).reshape(-1, num_objs), tf.float64
                 )
@@ -579,7 +579,7 @@ def visualize_moo(results):
     # Query plot.
     if ax_x:
         U_x = np.array(
-            cost_function(
+            U(
                 tf.reshape(
                     observer(
                         tf.convert_to_tensor(np.stack(X_mesh, axis=-1))

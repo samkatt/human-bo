@@ -95,7 +95,7 @@ def test_create_partial_moo_problem():
 
     objectives = partial_moo_problem.objective(x)
 
-    assert objectives.shape == tf.TensorShape([n, o_dim - 1])
+    assert objectives.shape == (n, o_dim - 1)
     tf.assert_equal(tf.gather(y, o, axis=-1), objectives)
 
 

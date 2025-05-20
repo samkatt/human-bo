@@ -102,18 +102,18 @@ class LinearPosterior(trieste.models.interfaces.SupportsGetObservationNoise):
 
         # We first sample, for each batch, `num_samples` weights.
         weights = self.weighted_particles.sample([*b, num_samples])
-        assert weights.shape == [*b, num_samples, self.dim]
+        assert weights.shape == (*b, num_samples, self.dim)
 
         # We now compute how the sampled weights lead to sample outcomes.
         samples = tf.matmul(query_points, weights, transpose_b=True)
-        assert samples.shape == tf.TensorShape([*b, n, num_samples])
+        assert samples.shape == (*b, n, num_samples)
 
         # "unpack" `samples` and switch `n` and `num_samples` dimension.
         samples = tf.transpose(
             tf.expand_dims(samples, -1),
             perm=[*range(len(b)), len(b) + 1, len(b), len(b) + 2],
         )
-        assert samples.shape == [*b, num_samples, n, 1]
+        assert samples.shape == (*b, num_samples, n, 1)
 
         return samples
 
@@ -125,13 +125,13 @@ class LinearPosterior(trieste.models.interfaces.SupportsGetObservationNoise):
         assert isinstance(b, tf.TensorShape)
 
         samples = self.sample(query_points, self.n_approx)
-        assert samples.shape == tf.TensorShape([*b, self.n_approx, n, 1])
+        assert samples.shape == (*b, self.n_approx, n, 1)
 
         mean = tf.reduce_mean(samples, axis=len(b))
         var = tf.math.reduce_variance(samples, axis=len(b))
 
-        assert mean.shape == tf.TensorShape([*b, n, 1])
-        assert var.shape == tf.TensorShape([*b, n, 1])
+        assert mean.shape == (*b, n, 1)
+        assert var.shape == (*b, n, 1)
 
         return mean, var
 
@@ -198,12 +198,12 @@ class MultIndependentGPs(trieste.models.interfaces.SupportsGetObservationNoise):
         # But I rather go that way, then have a bug caused by the following being wrong.
         assert len(list_of_samples) == self.output_dim
         for samples in list_of_samples:
-            assert samples.shape == tf.TensorShape([*b, num_samples, n, 1])
+            assert samples.shape == (*b, num_samples, n, 1)
 
         samples = tf.reshape(
             tf.concat(list_of_samples, axis=-1), (*b, num_samples, -1, self.output_dim)
         )
-        assert samples.shape == tf.TensorShape([*b, num_samples, n, self.output_dim])
+        assert samples.shape == (*b, num_samples, n, self.output_dim)
 
         return samples
 
@@ -265,7 +265,7 @@ class CompositeGP(trieste.models.interfaces.SupportsGetObservationNoise):
 
         Initiates individual GPs, one for each objective, and implements Trieste's
         API for probabilistic models. In particular, `sample` is done by sampling
-        from the individual GPs and then computing the cost given the `scalarization_weights`.
+        from the individual GPs and then compute `y` given the `scalarization_weights`.
         """
         self.scalarization_weights = tf.convert_to_tensor(
             scalarization_weights, tf.float64
@@ -289,15 +289,15 @@ class CompositeGP(trieste.models.interfaces.SupportsGetObservationNoise):
         # Here we sample objectives from our models.
         # Note we immediately scale them back using the stored means and standard deviation.
         obj_samples = self.models.sample(query_points, num_samples)
-        assert obj_samples.shape == tf.TensorShape((*b, num_samples, n, self.o_dim))
+        assert obj_samples.shape == (*b, num_samples, n, self.o_dim)
 
         # XXX: We assume utility function has no noise.
-        cost = moo.scalarize_objectives(
+        y = moo.scalarize_objectives(
             tf.reshape(obj_samples, (-1, self.o_dim)), self.scalarization_weights
         )
-        assert cost.shape == [prod([*b, num_samples, n]), 1]
+        assert y.shape == (prod([*b, num_samples, n]), 1)
 
-        return tf.reshape(cost, (*b, num_samples, n, 1))
+        return tf.reshape(y, (*b, num_samples, n, 1))
 
     def predict(
         self, query_points: trieste.types.TensorType
@@ -309,11 +309,11 @@ class CompositeGP(trieste.models.interfaces.SupportsGetObservationNoise):
 
         o_m, o_v = self.models.predict(query_points)
 
-        assert o_m.shape == tf.TensorShape((*b, self.o_dim))
-        assert o_v.shape == tf.TensorShape((*b, self.o_dim))
+        assert o_m.shape == (*b, self.o_dim)
+        assert o_v.shape == (*b, self.o_dim)
 
         # Here we transform our predicted means and variance.
-        # In particular, we want to predict the cost's mean and variance:
+        # In particular, we want to predict the mean and variance:
 
         # Given `X_i ~ N(m_i, v_i)`, we have:
         # `c * X_i   ~ N(c * m_i, c ** 2 * v_i)`
@@ -334,7 +334,7 @@ class CompositeGP(trieste.models.interfaces.SupportsGetObservationNoise):
             tf.reshape(tf.pow(self.scalarization_weights, 2), (-1, 1)),
         )
 
-        assert m.shape == tf.TensorShape([*b, 1]) and v.shape == tf.TensorShape([*b, 1])
+        assert m.shape == (*b, 1) and v.shape == (*b, 1)
         return m, v
 
     def log(self, dataset: trieste.data.Dataset | None = None) -> None:
@@ -349,7 +349,7 @@ class CompositeGP(trieste.models.interfaces.SupportsGetObservationNoise):
         # Here we combine the observation noise of our individual GPs.
         o_noise = self.models.get_observation_noise()
 
-        assert o_noise.shape == tf.TensorShape([self.o_dim])
+        assert o_noise.shape == (self.o_dim)
 
         # And then we take the linear combination.
         # We follow the following math:
@@ -362,7 +362,7 @@ class CompositeGP(trieste.models.interfaces.SupportsGetObservationNoise):
             tf.reshape(o_noise, (1, -1)),
             tf.reshape(tf.pow(self.scalarization_weights, 2), (-1, 1)),
         )
-        assert combined_noise.shape == tf.TensorShape([1, 1])
+        assert combined_noise.shape == (1, 1)
 
         return tf.squeeze(combined_noise)
 
@@ -399,7 +399,7 @@ class UtilityDistribution(trieste.models.interfaces.SupportsGetObservationNoise)
 
         samples = self.weight_posterior.sample(o, num_samples)
 
-        assert samples.shape == tf.TensorShape([*b, num_samples, n, 1])
+        assert samples.shape == (*b, num_samples, n, 1)
         return samples
 
     def predict(
@@ -462,11 +462,11 @@ class MOOPosterior(trieste.models.interfaces.SupportsGetObservationNoise):
 
         # Sample `num_samples` objectives and weights, and flatten them.
         o_samples = self.objectives_posterior.sample(query_points, num_samples)
-        assert o_samples.shape == tf.TensorShape([*b, num_samples, n, self.o_dim])
+        assert o_samples.shape == (*b, num_samples, n, self.o_dim)
         o_samples = tf.reshape(o_samples, (prod([*b, num_samples]), n, self.o_dim))
 
         samples = self.weight_posterior.sample(o_samples, 1)
-        assert samples.shape == [prod([*b, num_samples]), 1, n, 1]
+        assert samples.shape == (prod([*b, num_samples]), 1, n, 1)
 
         return tf.reshape(samples, (*b, num_samples, n, 1))
 
@@ -478,13 +478,13 @@ class MOOPosterior(trieste.models.interfaces.SupportsGetObservationNoise):
         assert isinstance(b, tf.TensorShape) and isinstance(n, int)
 
         predictions = self.sample(query_points, self.n_predict_samples)
-        assert predictions.shape == tf.TensorShape([*b, self.n_predict_samples, n, 1])
+        assert predictions.shape == (*b, self.n_predict_samples, n, 1)
 
         mean = tf.reduce_mean(predictions, axis=len(b))
         variance = tf.math.reduce_variance(predictions, axis=len(b))
 
-        assert mean.shape == tf.TensorShape([*b, n, 1])
-        assert variance.shape == tf.TensorShape([*b, n, 1])
+        assert mean.shape == (*b, n, 1)
+        assert variance.shape == (*b, n, 1)
 
         return mean, variance
 

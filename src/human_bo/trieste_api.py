@@ -385,12 +385,12 @@ class UtilityBO(interaction_loops.Agent):
     This BO agent does *not* know the utility weights and, hence, tracks a posterior over those.
     """
 
-    # TODO: remove `data_objectives` (perhaps give queries instead).
     def __init__(
         self,
+        X: tf.Tensor,
+        O: tf.Tensor,
+        Y: tf.Tensor,
         objectives: trieste.objectives.multi_objectives.MultiObjectiveTestProblem,
-        data_objectives: trieste.data.Dataset,
-        data_cost: trieste.data.Dataset,
         acqf: str,
         acqf_options: dict[str, Any],
     ):
@@ -405,25 +405,31 @@ class UtilityBO(interaction_loops.Agent):
         - `data_objectives` is supposed to contain `x -> o`.
         - `data_costs` is supposed to contain `o -> u`, from which we then infer the weights.
         """
+        self.X, self.O, self.Y = X, O, Y
         self.objectives = objectives
-        self.data_objectives = data_objectives
-        self.data_y = data_cost
+
         self.acqf = create_acqf(acqf, self.objectives.search_space, acqf_options)
         self.mean_acqf = create_acqf("mean", self.objectives.search_space, {})
 
     def pick_query(self) -> tuple[Any, dict[str, Any]]:
+        # Useful for typing warnings in the rest of the function
+        assert isinstance(self.X, tf.Tensor)
+        assert isinstance(self.Y, tf.Tensor)
+        assert isinstance(self.O, tf.Tensor)
+
         query_stats: dict[str, Any] = {"optimization_fails": 0}
 
         # Create the model (or return random sample if fails).
         try:
             model = posteriors.UtilityDistribution(
-                self.data_y, self.objectives.objective
+                self.O, self.Y, self.objectives.objective
             )
 
             # Report weight distribution.
             query_stats["weight_posterior"] = (
                 model.weight_posterior.weighted_particles.sample(n=100).numpy()
             )
+
             query_stats["weight_map"] = (
                 model.weight_posterior.weighted_particles.map().numpy()
             )
@@ -438,9 +444,7 @@ class UtilityBO(interaction_loops.Agent):
 
         # For acquisition functions which may use existing data,
         # `acqf_data` is x -> y data for reference.
-        acqf_data = trieste.data.Dataset(
-            self.data_objectives.query_points, self.data_y.observations
-        )
+        acqf_data = trieste.data.Dataset(self.X, self.Y)
 
         # Pick query given model.
         try:
@@ -449,7 +453,7 @@ class UtilityBO(interaction_loops.Agent):
             )
         except trieste.acquisition.optimizer.FailedOptimizationError as e:
             print(
-                "`UtilityDistribution.pick_query` failed to optimize, returning random sample.",
+                "`UtilityBO.pick_query` failed to optimize, returning random sample.",
                 e,
             )
             query_stats["optimization_fails"] += 1
@@ -466,7 +470,7 @@ class UtilityBO(interaction_loops.Agent):
 
             query_stats["map"] = {"x": np.array(arg_map), "y": np.array(map_mean)}
         except trieste.acquisition.optimizer.FailedOptimizationError as e:
-            print("`UtilityDistribution.pick_query` failed to find MAP.", e)
+            print("`UtilityBO.pick_query` failed to find MAP.", e)
             query_stats["optimization_fails"] += 1
 
         query_stats["observation_noise"] = np.array(model.get_observation_noise())
@@ -475,9 +479,9 @@ class UtilityBO(interaction_loops.Agent):
 
     def observe(self, query, feedback, evaluation) -> None:
         del evaluation
-
-        self.data_objectives += trieste.data.Dataset(query, feedback["o"])
-        self.data_y += trieste.data.Dataset(feedback["o"], feedback["y"])
+        self.X = tf.concat([self.X, query], 0)
+        self.O = tf.concat([self.O, feedback["o"]], 0)
+        self.Y = tf.concat([self.Y, feedback["y"]], 0)
 
 
 class MOO(interaction_loops.Agent):

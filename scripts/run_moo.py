@@ -116,9 +116,10 @@ def main():
             objectives_problem, o_dim + z_dim, z
         )
         ai = trieste_api.UtilityBO(
+            x_init,
+            f_init["o"],
+            f_init["y"],
             partial_objective_function,
-            trieste.data.Dataset(x_init, f_init["o"]),
-            trieste.data.Dataset(f_init["o"], f_init["y"]),
             exp_params["acqf"],
             acqf_options=conf.get_entries_with_tag(exp_params, "acqf-option"),
         )

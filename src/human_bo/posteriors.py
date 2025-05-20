@@ -69,8 +69,8 @@ class LinearPosterior(trieste.models.interfaces.SupportsGetObservationNoise):
         :observation_noise: the assume noise of the linear function.
         :n_approx: the number of samples to approximate the distribution with.
         """
-        if tf.math.count_nonzero(X) == 0:
-            raise ValueError("Cannot initiate `UtilityDistribution` with empty `data`")
+        if tf.size(X) == 0:
+            raise ValueError("Cannot initiate `LinearPosterior` with empty `data`")
 
         self.output_dim = X.shape[-1]
         assert isinstance(self.output_dim, int)
@@ -101,16 +101,21 @@ class LinearPosterior(trieste.models.interfaces.SupportsGetObservationNoise):
         b, n = query_points.shape[:-2], query_points.shape[-2]
         assert isinstance(b, tf.TensorShape) and isinstance(n, int)
 
+        # TODO: Figure out the roles of `b` and `n` and apply to all `sample` and `predict`.
         x = tf.reshape(query_points, (-1, self.output_dim))
-
         weights = self.weighted_particles.sample(num_samples)
-        samples = tf.matmul(x, weights, transpose_b=True)
 
+        samples = tf.matmul(x, weights, transpose_b=True)
         assert samples.shape == tf.TensorShape([prod([*b, n]), num_samples])
 
-        # TODO: make sure this reshaping does assign the correct places.
+        # "unpack" `samples` and switch `n` and `num_samples` dimension.
+        samples = tf.transpose(
+            tf.reshape(samples, [*b, n, num_samples, 1]),
+            perm=[*range(len(b)), len(b) + 1, len(b), len(b) + 2],
+        )
+        assert samples.shape == [*b, num_samples, n, 1]
 
-        return tf.reshape(samples, [*b, num_samples, n, 1])
+        return samples
 
     def predict(
         self, query_points: trieste.types.TensorType
@@ -361,7 +366,7 @@ class CompositeGP(trieste.models.interfaces.SupportsGetObservationNoise):
 class UtilityDistribution(trieste.models.interfaces.SupportsGetObservationNoise):
     """Note `SupportsGetObservationNoise` is a `ProbabilisticModel`."""
 
-    def __init__(self, data: trieste.data.Dataset, objectives):
+    def __init__(self, O: tf.Tensor, Y: tf.Tensor, objectives):
         """A distribution over the utility given known objective functions.
 
         This class implements the `Trieste` model interface(s) to represent
@@ -371,14 +376,8 @@ class UtilityDistribution(trieste.models.interfaces.SupportsGetObservationNoise)
         - The utility function is assumed to be linear, and the prior over the weights is uniform.
         - `data` is supposed to contain o -> u, from which we then infer the weights.
         """
-        if tf.math.count_nonzero(data.query_points) == 0:
-            raise ValueError("Cannot initiate `UtilityDistribution` with empty `data`")
-
         self.objectives = objectives
-
-        assert isinstance(data.query_points, tf.Tensor)
-        assert isinstance(data.observations, tf.Tensor)
-        self.weight_posterior = LinearPosterior(data.query_points, data.observations)
+        self.weight_posterior = LinearPosterior(O, Y)
 
     def sample(
         self, query_points: trieste.types.TensorType, num_samples: int

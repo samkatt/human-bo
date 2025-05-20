@@ -41,12 +41,11 @@ class WeightedParticles:
         self.normalized_weights = tf.reduce_logsumexp(logits)
         self.distr = tfp.distributions.Categorical(logits=logits)
 
-    def sample(self, n: int) -> tf.Tensor:
+    def sample(self, shape: list[int]) -> tf.Tensor:
         """Samples `n` `particles` according to their `logits`."""
-        assert n > 0
-        return tf.gather(self.particles, self.distr.sample(n))
+        return tf.gather(self.particles, self.distr.sample(shape))
 
-    def map(self) -> Any:
+    def map(self) -> tf.Tensor:
         """Returns the most likely element in `particles` according to `logits`.
 
         Does *not care* for repeating particles (as in, will not add their weight).
@@ -72,18 +71,18 @@ class LinearPosterior(trieste.models.interfaces.SupportsGetObservationNoise):
         if tf.size(X) == 0:
             raise ValueError("Cannot initiate `LinearPosterior` with empty `data`")
 
-        self.output_dim = X.shape[-1]
-        assert isinstance(self.output_dim, int)
+        self.dim = X.shape[-1]
+        assert isinstance(self.dim, int)
 
-        self.n_ensemble = 20**self.output_dim
+        self.n_ensemble = 20**self.dim
         self.n_approx = n_approx
         self.observation_noise = tf.convert_to_tensor(observation_noise, tf.float64)
 
-        assert self.n_approx > 0 and self.output_dim > 0 and observation_noise >= 0
+        assert self.n_approx > 0 and self.dim > 0 and observation_noise >= 0
 
         weights = tf.convert_to_tensor(
             [
-                moo.sample_scalarization_weights(self.output_dim)
+                moo.sample_scalarization_weights(self.dim)
                 for _ in range(self.n_ensemble)
             ],
             tf.float64,
@@ -101,16 +100,17 @@ class LinearPosterior(trieste.models.interfaces.SupportsGetObservationNoise):
         b, n = query_points.shape[:-2], query_points.shape[-2]
         assert isinstance(b, tf.TensorShape) and isinstance(n, int)
 
-        # TODO: Figure out the roles of `b` and `n` and apply to all `sample` and `predict`.
-        x = tf.reshape(query_points, (-1, self.output_dim))
-        weights = self.weighted_particles.sample(num_samples)
+        # We first sample, for each batch, `num_samples` weights.
+        weights = self.weighted_particles.sample([*b, num_samples])
+        assert weights.shape == [*b, num_samples, self.dim]
 
-        samples = tf.matmul(x, weights, transpose_b=True)
-        assert samples.shape == tf.TensorShape([prod([*b, n]), num_samples])
+        # We now compute how the sampled weights lead to sample outcomes.
+        samples = tf.matmul(query_points, weights, transpose_b=True)
+        assert samples.shape == tf.TensorShape([*b, n, num_samples])
 
         # "unpack" `samples` and switch `n` and `num_samples` dimension.
         samples = tf.transpose(
-            tf.reshape(samples, [*b, n, num_samples, 1]),
+            tf.expand_dims(samples, -1),
             perm=[*range(len(b)), len(b) + 1, len(b), len(b) + 2],
         )
         assert samples.shape == [*b, num_samples, n, 1]
@@ -244,12 +244,12 @@ class MultIndependentGPs(trieste.models.interfaces.SupportsGetObservationNoise):
         """
         # We simply ask the observation noise of our individual GPs.
         # Note that we do re-scale it by multiplying with their variance.
-        o_noise = [
+        noise = [
             m.get_observation_noise() * tf.pow(s, 2)
             for m, s in zip(self.models, self.stds)
         ]
 
-        return tf.squeeze(tf.concat(o_noise, -1))
+        return tf.squeeze(tf.concat(noise, -1))
 
 
 class CompositeGP(trieste.models.interfaces.SupportsGetObservationNoise):
@@ -295,6 +295,7 @@ class CompositeGP(trieste.models.interfaces.SupportsGetObservationNoise):
         cost = moo.scalarize_objectives(
             tf.reshape(obj_samples, (-1, self.o_dim)), self.scalarization_weights
         )
+        assert cost.shape == [prod([*b, num_samples, n]), 1]
 
         return tf.reshape(cost, (*b, num_samples, n, 1))
 
@@ -343,8 +344,6 @@ class CompositeGP(trieste.models.interfaces.SupportsGetObservationNoise):
     def get_observation_noise(self) -> trieste.types.TensorType:
         """Abstract method of `SupportsGetObservationNoise`.
 
-        Return the variance of observation noise.
-
         :return: The observation noise.
         """
         # Here we combine the observation noise of our individual GPs.
@@ -353,6 +352,11 @@ class CompositeGP(trieste.models.interfaces.SupportsGetObservationNoise):
         assert o_noise.shape == tf.TensorShape([self.o_dim])
 
         # And then we take the linear combination.
+        # We follow the following math:
+        #   `Var[X + Y] = Var[X] + Var[Y]`    if X and Y are independent.
+        #   `Var[c * X] = c^2 * Var[X]`
+        # To get:
+        # `Var[U] = Var[w_1 * O_1 + ... w_k * O_k] = w_1^2 * O_1 + ... + w_k^2 O_k`
         # XXX: we assume here that the utility function is noise free.
         combined_noise = tf.matmul(
             tf.reshape(o_noise, (1, -1)),
@@ -376,6 +380,10 @@ class UtilityDistribution(trieste.models.interfaces.SupportsGetObservationNoise)
         - The utility function is assumed to be linear, and the prior over the weights is uniform.
         - `data` is supposed to contain o -> u, from which we then infer the weights.
         """
+        o_dim = O.shape[-1]
+        assert isinstance(o_dim, int)
+
+        self.o_dim = o_dim
         self.objectives = objectives
         self.weight_posterior = LinearPosterior(O, Y)
 
@@ -387,6 +395,8 @@ class UtilityDistribution(trieste.models.interfaces.SupportsGetObservationNoise)
         assert isinstance(b, tf.TensorShape) and isinstance(n, int)
 
         o = self.objectives(query_points)
+        assert o.shape == (*b, n, self.o_dim)
+
         samples = self.weight_posterior.sample(o, num_samples)
 
         assert samples.shape == tf.TensorShape([*b, num_samples, n, 1])
@@ -412,6 +422,10 @@ class UtilityDistribution(trieste.models.interfaces.SupportsGetObservationNoise)
 
         :return: The observation noise.
         """
+        # There is no observation noise over the objectives:
+        # we assume they are known.
+
+        # So the only observation noise is that of the utility function:
         return self.weight_posterior.observation_noise
 
 
@@ -446,12 +460,13 @@ class MOOPosterior(trieste.models.interfaces.SupportsGetObservationNoise):
         b, n = query_points.shape[:-2], query_points.shape[-2]
         assert isinstance(b, tf.TensorShape) and isinstance(n, int)
 
-        # Sample `num_samples` objectives and weights,
+        # Sample `num_samples` objectives and weights, and flatten them.
         o_samples = self.objectives_posterior.sample(query_points, num_samples)
         assert o_samples.shape == tf.TensorShape([*b, num_samples, n, self.o_dim])
+        o_samples = tf.reshape(o_samples, (prod([*b, num_samples]), n, self.o_dim))
 
         samples = self.weight_posterior.sample(o_samples, 1)
-        assert samples.shape == tf.TensorShape([*b, num_samples, 1, n, 1])
+        assert samples.shape == [prod([*b, num_samples]), 1, n, 1]
 
         return tf.reshape(samples, (*b, num_samples, n, 1))
 
@@ -482,6 +497,28 @@ class MOOPosterior(trieste.models.interfaces.SupportsGetObservationNoise):
 
         Return the variance of observation noise.
 
-        :return: The observation noise.
+        The observation noise is a result of the observation noise of
+        the underlying objective and utility posteriors.
+
+        :return: shaped [1]
         """
-        # TODO: implement.
+        #   `Var_e[U] = Var_e[W_1 * O_1 + ... + W_k * O_k + e]`
+        #            `= Var_e[W_1 * O_1] + ... + Var_e[W_k * O_k] + Var_e[e]`
+
+        # I personally have no idea to calculate `Var_e[W_i O_i]` so, instead,
+        # I take a point estimate (MAP) of w
+        w_map = self.weight_posterior.weighted_particles.map()
+        assert w_map.shape == (self.o_dim,)
+
+        # Then, assuming `w_i`l is constant, continuing from above:
+        #   `Var_e[w_1 * O_1] + ... + Var_e[w_k * O_k]`
+        #   `= w_i^2 Var_e[O_1] + ... + w_k^2 Var_e[O_k] + Var[e]`
+
+        # Recall that the variance of `O`, `Var_e[O_i]`, is their observation noise:
+        o_noises = self.objectives_posterior.get_observation_noise()
+        assert o_noises.shape == (self.o_dim,)
+
+        noise = tf.tensordot(o_noises, tf.pow(w_map, 2), 1)
+        assert noise.shape == ()
+
+        return noise + self.weight_posterior.get_observation_noise()

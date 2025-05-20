@@ -13,7 +13,7 @@ def test_WeightedPF():
 
     weighted_pf = posteriors.WeightedParticles(particles, log_likelihoods)
 
-    samples = weighted_pf.sample(n).numpy()
+    samples = weighted_pf.sample([n])
     assert samples.shape == (n,)
 
     sample_values, sample_counts = np.unique(samples, return_counts=True)

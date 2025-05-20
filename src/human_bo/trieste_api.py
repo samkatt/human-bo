@@ -427,7 +427,7 @@ class UtilityBO(interaction_loops.Agent):
 
             # Report weight distribution.
             query_stats["weight_posterior"] = (
-                model.weight_posterior.weighted_particles.sample(n=100).numpy()
+                model.weight_posterior.weighted_particles.sample([100]).numpy()
             )
 
             query_stats["weight_map"] = (

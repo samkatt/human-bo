@@ -31,6 +31,7 @@ CONFIG: dict[str, dict[str, Any]] = {
         "tags": {"experiment-parameter"},
         "parser-arguments": {
             "choices": {"UCB", "MES", "EI", "random"},
+            "default": "EI",
         },
     },
     "ucb_beta": {
